@@ -764,6 +764,14 @@ function renderAgenda(){
     apptsByDate[a.date].push(a);
   });
 
+  function creneauStartMinutes(creneau){
+    var m = /(\d{1,2})h(\d{2})?/.exec(creneau || '');
+    if(!m) return 9999;
+    var h = parseInt(m[1], 10);
+    var mi = m[2] ? parseInt(m[2], 10) : 0;
+    return h * 60 + mi;
+  }
+
   var monthLabel = monthStart.toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
   monthLabel = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
 
@@ -771,18 +779,17 @@ function renderAgenda(){
   for(var i = 0; i < startOffset; i++){ cells += '<div class="cal-day empty"></div>'; }
   for(var d = 1; d <= daysInMonth; d++){
     var iso = year + '-' + pad2(month + 1) + '-' + pad2(d);
-    var dayAppts = (apptsByDate[iso] || []).slice().sort(function(a, b){ return (a.creneau || '').localeCompare(b.creneau || ''); });
+    var dayAppts = (apptsByDate[iso] || []).slice().sort(function(a, b){ return creneauStartMinutes(a.creneau) - creneauStartMinutes(b.creneau); });
     var isToday = iso === todayIso;
     cells += '<div class="cal-day' + (isToday ? ' today' : '') + '">' +
       '<div class="cal-day-num">' + d + '</div>' +
       '<div class="cal-appts">' +
-        dayAppts.slice(0, 4).map(function(a){
+        dayAppts.map(function(a){
           var toneClass = a.status === 'confirme' ? 'cal-confirme' : a.status === 'annule' ? 'cal-annule' : 'cal-attente';
           return '<button type="button" class="cal-appt ' + toneClass + '" data-action="open-appt" data-id="' + a.id + '">' +
-            '<span class="cal-appt-time">' + escapeHtml((a.creneau || '').split(' –')[0]) + '</span>' + escapeHtml(a.nom) +
+            '<span class="cal-appt-time">' + escapeHtml(a.creneau || '') + '</span> ' + escapeHtml(a.nom) +
           '</button>';
         }).join('') +
-        (dayAppts.length > 4 ? '<div class="cal-more">+' + (dayAppts.length - 4) + ' de plus</div>' : '') +
       '</div>' +
     '</div>';
   }
