@@ -1076,11 +1076,15 @@ function renderReports(){
     }).join('');
   }
 
-  var revenueValues = r.months.map(function(m){ return r.revenueByMonth[m]; });
   var apptsValues = r.months.map(function(m){ return r.apptsByMonth[m]; });
+  var newClientsValues = r.months.map(function(m){ return r.newClientsByMonth[m]; });
 
   var topServicesRows = r.topServices.length
     ? r.topServices.map(function(s){ return '<tr><td>' + escapeHtml(s.label) + '</td><td>' + s.count + '</td></tr>'; }).join('')
+    : '<tr><td colspan="2" class="admin-empty">Aucune donnée pour le moment.</td></tr>';
+
+  var topBrandsRows = r.topBrands.length
+    ? r.topBrands.map(function(s){ return '<tr><td>' + escapeHtml(s.label) + '</td><td>' + s.count + '</td></tr>'; }).join('')
     : '<tr><td colspan="2" class="admin-empty">Aucune donnée pour le moment.</td></tr>';
 
   var unpaidRows = r.unpaidInvoices.length
@@ -1092,34 +1096,38 @@ function renderReports(){
 
   return '' +
     '<div class="admin-section-title">Rapports</div>' +
-    '<div class="admin-section-sub">Chiffre d\'affaires, activité et impayés sur les 6 derniers mois.</div>' +
+    '<div class="admin-section-sub">Activité de l\'atelier sur les 6 derniers mois.</div>' +
     '<div class="admin-grid">' +
-      '<div class="stat-card"><div class="label">CA encaissé (total)</div><div class="value ok">' + eur(r.totalRevenueAllTime) + '</div></div>' +
+      '<div class="stat-card"><div class="label">Taux de confirmation</div><div class="value ok">' + r.confirmationRate + ' %</div></div>' +
       '<div class="stat-card"><div class="label">Total impayé</div><div class="value' + (r.totalUnpaid > 0 ? ' warn' : ' ok') + '">' + eur(r.totalUnpaid) + '</div></div>' +
       '<div class="stat-card"><div class="label">Clients enregistrés</div><div class="value">' + r.clientCount + '</div></div>' +
     '</div>' +
     '<div class="admin-grid-2">' +
       '<div class="admin-panel">' +
-        '<div class="admin-panel-head"><h3>Chiffre d\'affaires payé / mois</h3></div>' +
-        '<div class="bar-chart">' + bars(revenueValues, eur) + '</div>' +
-      '</div>' +
-      '<div class="admin-panel">' +
         '<div class="admin-panel-head"><h3>Rendez-vous / mois</h3></div>' +
         '<div class="bar-chart">' + bars(apptsValues, function(v){ return String(v); }) + '</div>' +
+      '</div>' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Nouveaux clients / mois</h3></div>' +
+        '<div class="bar-chart">' + bars(newClientsValues, function(v){ return String(v); }) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Statuts des rendez-vous</h3></div>' +
+      '<div class="admin-grid" style="margin-bottom:0;">' +
+        '<div class="stat-card"><div class="label">En attente</div><div class="value warn">' + r.statusCounts.en_attente + '</div></div>' +
+        '<div class="stat-card"><div class="label">Confirmés</div><div class="value ok">' + r.statusCounts.confirme + '</div></div>' +
+        '<div class="stat-card"><div class="label">Annulés</div><div class="value">' + r.statusCounts.annule + '</div></div>' +
       '</div>' +
     '</div>' +
     '<div class="admin-grid-2">' +
       '<div class="admin-panel">' +
-        '<div class="admin-panel-head"><h3>Statuts des rendez-vous</h3></div>' +
-        '<div class="admin-grid" style="margin-bottom:0;">' +
-          '<div class="stat-card"><div class="label">En attente</div><div class="value warn">' + r.statusCounts.en_attente + '</div></div>' +
-          '<div class="stat-card"><div class="label">Confirmés</div><div class="value ok">' + r.statusCounts.confirme + '</div></div>' +
-          '<div class="stat-card"><div class="label">Annulés</div><div class="value">' + r.statusCounts.annule + '</div></div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="admin-panel">' +
         '<div class="admin-panel-head"><h3>Interventions les plus demandées</h3></div>' +
         '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Intervention</th><th>Nombre</th></tr></thead><tbody>' + topServicesRows + '</tbody></table></div>' +
+      '</div>' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Marques les plus fréquentes</h3></div>' +
+        '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Marque</th><th>Nombre</th></tr></thead><tbody>' + topBrandsRows + '</tbody></table></div>' +
       '</div>' +
     '</div>' +
     '<div class="admin-panel">' +
