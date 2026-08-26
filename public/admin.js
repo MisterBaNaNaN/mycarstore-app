@@ -58,7 +58,7 @@ function apptStatusActions(a){
 }
 
 /* ---------- API + state ---------- */
-var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[]};
+var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[], fidelity:{threshold:5, reward:'une remise fidélité'}};
 var CURRENT_USERNAME = null;
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
 var REPORTS = null;
@@ -476,6 +476,31 @@ function openVacationForm(){
   });
 }
 
+function openFidelityForm(){
+  var f = STATE.fidelity || {threshold:5, reward:'une remise fidélité'};
+  openModal(
+    '<h3>Programme de fidélité</h3>' +
+    '<form id="fidForm">' +
+      '<div class="field" style="margin-bottom:16px;"><label>Récompense tous les X entretiens payés<span class="req">*</span></label><input type="number" name="threshold" min="1" max="100" step="1" required value="' + escapeHtml(f.threshold) + '"></div>' +
+      '<div class="field" style="margin-bottom:16px;"><label>Récompense offerte<span class="req">*</span></label><input type="text" name="reward" required placeholder="Ex. une vidange offerte" value="' + escapeHtml(f.reward) + '"></div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
+        '<button type="submit" class="btn btn-fill">Enregistrer</button>' +
+      '</div>' +
+    '</form>'
+  );
+  var form = document.getElementById('fidForm');
+  form.querySelector('[data-close]').onclick = closeModal;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var threshold = parseInt(form.threshold.value, 10);
+    var reward = form.reward.value.trim();
+    if(!(threshold >= 1) || !reward) return;
+    afterAction(api('POST', '/api/admin/fidelity', {threshold: threshold, reward: reward}));
+    closeModal();
+  });
+}
+
 function openPasswordForm(){
   openModal(
     '<h3>Changer le mot de passe</h3>' +
@@ -786,6 +811,10 @@ function renderDashboard(){
     '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Alertes CT / Révision' + (alerts.length ? ' · ' + alerts.length : '') + '</h3></div>' +
       alertRows(alerts) +
+    '</div>' +
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Programme de fidélité</h3><button type="button" class="btn btn-line" data-action="configure-fidelity">Configurer</button></div>' +
+      '<p class="hint" style="margin:0;">Récompense tous les <strong style="color:var(--paper);">' + (STATE.fidelity ? STATE.fidelity.threshold : 5) + '</strong> entretiens payés — « ' + escapeHtml(STATE.fidelity ? STATE.fidelity.reward : 'une remise fidélité') + ' ».</p>' +
     '</div>';
 }
 
@@ -958,7 +987,8 @@ function renderClientDetail(id){
       '</tbody></table></div>'
     : '<div class="admin-empty">Aucun véhicule enregistré.</div>';
 
-  var FIDELITY_THRESHOLD = 5;
+  var fidelitySettings = STATE.fidelity || {threshold:5, reward:'une remise fidélité'};
+  var FIDELITY_THRESHOLD = fidelitySettings.threshold || 5;
   var paidCount = c.invoices.filter(function(i){ return i.statut === 'payée'; }).length;
   var fidelityMod = paidCount % FIDELITY_THRESHOLD;
   var fidelityReady = paidCount > 0 && fidelityMod === 0;
@@ -1080,7 +1110,7 @@ function renderClientDetail(id){
       '<div class="admin-panel-head"><h3>Fidélité</h3></div>' +
       '<p class="hint" style="margin-bottom:14px;">' + paidCount + ' facture(s) payée(s) au total — une remise fidélité tous les ' + FIDELITY_THRESHOLD + ' entretiens.</p>' +
       '<div class="fidelity-track"><div class="fidelity-fill" style="width:' + fidelityPct + '%;"></div></div>' +
-      '<p class="hint" style="margin-top:10px; margin-bottom:0;">' + (fidelityReady ? '🎉 Ce client a mérité une remise fidélité !' : 'Encore ' + fidelityRemaining + ' entretien(s) avant la prochaine remise.') + '</p>' +
+      '<p class="hint" style="margin-top:10px; margin-bottom:0;">' + (fidelityReady ? '🎉 Ce client a mérité : ' + escapeHtml(fidelitySettings.reward) + ' !' : 'Encore ' + fidelityRemaining + ' entretien(s) avant : ' + escapeHtml(fidelitySettings.reward) + '.') + '</p>' +
     '</div>' +
 
     '<div class="admin-panel">' +
@@ -1340,6 +1370,7 @@ function renderAdmin(){
   var el = document.getElementById('adminApp');
   if(!el || el.hidden) return;
   var newCount = STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length;
+  var pendingTestimonials = (STATE.testimonials || []).filter(function(t){ return !t.published; }).length;
 
   function tabBtn(key, label){
     var active = adminState.tab === key || (key === 'clients' && adminState.tab === 'client');
@@ -1365,7 +1396,7 @@ function renderAdmin(){
         tabBtn('appointments', 'Rendez-vous' + (newCount ? ' · ' + newCount : '')) +
         tabBtn('clients', 'Clients') +
         tabBtn('reports', 'Rapports') +
-        tabBtn('testimonials', 'Avis') +
+        tabBtn('testimonials', 'Avis' + (pendingTestimonials ? ' · ' + pendingTestimonials : '')) +
         tabBtn('accounts', 'Comptes') +
       '</div>' +
       '<div class="row-actions">' +
@@ -1414,6 +1445,8 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     afterAction(api('POST', '/api/admin/status', {mode:'closed_today', closedTodayDate: todayStr()}));
   } else if(action === 'open-vacation-modal'){
     openVacationForm();
+  } else if(action === 'configure-fidelity'){
+    openFidelityForm();
   } else if(action === 'confirm-appt'){
     afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'confirme'}), notifiedSummary);
   } else if(action === 'cancel-appt'){

@@ -57,6 +57,20 @@ app.get('/api/testimonials', (req, res) => {
   res.json(state.getTestimonials().filter((t) => t.published));
 });
 
+app.post('/api/testimonials', (req, res) => {
+  const b = req.body || {};
+  const nom = str(b.nom).trim().slice(0, 100);
+  const texte = str(b.texte).trim().slice(0, 1000);
+  if (!nom || !texte) { res.status(400).json({ error: 'missing_fields' }); return; }
+  let note = Number(b.note);
+  if (!(note >= 1 && note <= 5)) note = 5;
+  const createdAt = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO testimonials (created_at, nom, note, texte, published) VALUES (?, ?, ?, ?, 0)
+  `).run(createdAt, nom, Math.round(note), texte);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
 app.post('/api/appointments', (req, res) => {
   const b = req.body || {};
   if (!str(b.nom).trim() || !str(b.tel).trim() || !str(b.email).trim() || !str(b.date).trim() || !str(b.creneau).trim()) {
@@ -370,6 +384,16 @@ adminRouter.patch('/invoices/:id', (req, res) => updateDoc('invoices', ['impayé
 adminRouter.delete('/invoices/:id', (req, res) => {
   const info = db.prepare('DELETE FROM invoices WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.post('/fidelity', (req, res) => {
+  const b = req.body || {};
+  let threshold = Math.round(Number(b.threshold));
+  if (!(threshold >= 1)) threshold = 5;
+  if (threshold > 100) threshold = 100;
+  const reward = str(b.reward).trim() || 'une remise fidélité';
+  db.prepare('UPDATE site_state SET fidelity_threshold = ?, fidelity_reward = ? WHERE id = 1').run(threshold, reward);
   res.json({ ok: true });
 });
 

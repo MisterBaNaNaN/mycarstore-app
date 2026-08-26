@@ -110,9 +110,8 @@ function starsHtml(note){
 fetch('/api/testimonials')
   .then(function(r){ return r.ok ? r.json() : []; })
   .then(function(list){
-    var section = document.getElementById('avis');
     var grid = document.getElementById('testiGrid');
-    if(!section || !grid || !list || !list.length) return;
+    if(!grid || !list || !list.length) return;
     grid.innerHTML = list.map(function(t){
       return '<div class="testi-card">' +
         '<div class="stars">' + starsHtml(t.note) + '</div>' +
@@ -120,9 +119,48 @@ fetch('/api/testimonials')
         '<div class="who">' + escapeHtml(t.nom) + '</div>' +
       '</div>';
     }).join('');
-    section.hidden = false;
+    grid.hidden = false;
   })
   .catch(function(){});
+
+var testiForm = document.getElementById('testiForm');
+if(testiForm){
+  var testiStatusEl = document.getElementById('testiFormStatus');
+  testiForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(!testiForm.checkValidity()){
+      testiForm.reportValidity();
+      return;
+    }
+    var nom = testiForm.nom.value.trim();
+    var note = parseInt(testiForm.note.value, 10);
+    var texte = testiForm.texte.value.trim();
+    var submitBtn = testiForm.querySelector('.form-submit');
+    var originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Envoi en cours…';
+    testiStatusEl.classList.remove('show', 'ok');
+
+    fetch('/api/testimonials', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nom: nom, note: note, texte: texte})
+    }).then(function(r){
+      if(!r.ok) throw new Error('request_failed');
+      return r.json();
+    }).then(function(){
+      testiForm.reset();
+      testiStatusEl.textContent = 'Merci ! Votre avis a bien été envoyé et sera publié après vérification.';
+      testiStatusEl.classList.add('show', 'ok');
+    }).catch(function(){
+      testiStatusEl.textContent = "L'envoi a échoué — vérifiez votre connexion et réessayez.";
+      testiStatusEl.classList.add('show');
+    }).finally(function(){
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+    });
+  });
+}
 
 /* ---------- rendez-vous form ---------- */
 function escapeHtml(str){

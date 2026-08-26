@@ -400,6 +400,8 @@ section{padding:104px 0;}
 .testi-card .stars{color:var(--lime); letter-spacing:0.12em; font-size:1rem;}
 .testi-card p{color:var(--steel); line-height:1.65; font-size:0.94rem; margin:0; flex:1;}
 .testi-card .who{font-family:var(--font-mono); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--steel-2);}
+.testi-form-wrap{max-width:640px; margin:56px auto 0;}
+.testi-form-wrap h3{font-size:1.3rem; margin-bottom:8px;}
 
 /* ---------- location ---------- */
 .location{background:var(--ink);}
@@ -843,6 +845,7 @@ select{
   margin-top:14px; display:none;
 }
 .form-status.show{display:block;}
+.form-status.ok{color:var(--lime);}
 
 .rdv-summary{position:sticky; top:104px;}
 @media (max-width:900px){ .rdv-summary{position:static;} }
