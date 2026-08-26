@@ -124,6 +124,19 @@ if(rdvForm){
   var todayDate = new Date();
   dateInput.min = todayDate.getFullYear() + '-' + pad2(todayDate.getMonth() + 1) + '-' + pad2(todayDate.getDate());
 
+  function fillSlotOptions(slots){
+    creneauSelect.innerHTML = '';
+    var ph = document.createElement('option');
+    ph.value = ''; ph.disabled = true; ph.selected = true;
+    ph.textContent = slots.length ? 'Choisir un créneau' : 'Plus aucun créneau disponible ce jour';
+    creneauSelect.appendChild(ph);
+    slots.forEach(function(s){
+      var o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      creneauSelect.appendChild(o);
+    });
+  }
+
   function refreshSlots(){
     var val = dateInput.value;
     creneauSelect.innerHTML = '';
@@ -156,19 +169,33 @@ if(rdvForm){
 
     dateInput.setCustomValidity('');
     dateHint.classList.remove('warn');
-    dateHint.textContent = day === 6
-      ? 'Samedi : atelier ouvert 9h – 14h.'
-      : 'Jour ouvré : atelier ouvert 9h – 18h30.';
+    dateHint.textContent = (day === 6 ? 'Samedi : atelier ouvert 9h – 14h.' : 'Jour ouvré : atelier ouvert 9h – 18h30.') + ' Vérification des créneaux disponibles…';
 
     var ph = document.createElement('option');
     ph.value = ''; ph.disabled = true; ph.selected = true;
-    ph.textContent = 'Choisir un créneau';
+    ph.textContent = 'Chargement des créneaux…';
     creneauSelect.appendChild(ph);
-    slots.forEach(function(s){
-      var o = document.createElement('option');
-      o.value = s; o.textContent = s;
-      creneauSelect.appendChild(o);
-    });
+
+    fetch('/api/taken-slots?date=' + encodeURIComponent(val))
+      .then(function(r){ return r.ok ? r.json() : {taken:[]}; })
+      .then(function(data){
+        if(dateInput.value !== val) return; // date changed again while we were fetching
+        var taken = data.taken || [];
+        var available = slots.filter(function(s){ return taken.indexOf(s) === -1; });
+        fillSlotOptions(available);
+        var base = day === 6 ? 'Samedi : atelier ouvert 9h – 14h.' : 'Jour ouvré : atelier ouvert 9h – 18h30.';
+        if(available.length === 0){
+          dateHint.textContent = base + ' Tous les créneaux de ce jour sont déjà pris — choisissez une autre date.';
+          dateHint.classList.add('warn');
+        } else {
+          dateHint.textContent = base;
+          dateHint.classList.remove('warn');
+        }
+      })
+      .catch(function(){
+        if(dateInput.value !== val) return;
+        fillSlotOptions(slots);
+      });
   }
   dateInput.addEventListener('change', refreshSlots);
   refreshSlots();

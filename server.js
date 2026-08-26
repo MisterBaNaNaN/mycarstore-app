@@ -26,6 +26,14 @@ function toItemsArray(v) {
     }));
 }
 function str(v) { return typeof v === 'string' ? v : ''; }
+function toDiscount(b) {
+  const type = b.discountType;
+  if (type !== 'percent' && type !== 'fixed') return { type: null, value: 0 };
+  let value = Number(b.discountValue);
+  if (!(value > 0)) return { type: null, value: 0 };
+  if (type === 'percent' && value > 100) value = 100;
+  return { type, value };
+}
 
 /* ---------------------------------------------------------------------- */
 /* Public endpoints                                                       */
@@ -33,6 +41,12 @@ function str(v) { return typeof v === 'string' ? v : ''; }
 
 app.get('/api/public-status', (req, res) => {
   res.json(state.getSiteStatus());
+});
+
+app.get('/api/taken-slots', (req, res) => {
+  const date = str(req.query.date).trim();
+  if (!date) { res.status(400).json({ error: 'missing_date' }); return; }
+  res.json({ date, taken: state.getTakenSlots(date) });
 });
 
 app.post('/api/appointments', (req, res) => {
@@ -47,18 +61,20 @@ app.post('/api/appointments', (req, res) => {
     return;
   }
   const createdAt = new Date().toISOString();
+  const match = state.findMatchingClient(b.tel, b.email, b.nom);
   const result = db.prepare(`
     INSERT INTO appointments
       (created_at, nom, tel, email, marque, modele, annee, km, immat, services, message, pret, date, creneau, flexible, contactpref, status, client_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'en_attente', NULL)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'en_attente', ?)
   `).run(
     createdAt, str(b.nom).trim(), str(b.tel).trim(), str(b.email).trim(),
     str(b.marque).trim(), str(b.modele).trim(), str(b.annee).trim(), str(b.km).trim(), str(b.immat).trim(),
     JSON.stringify(services), str(b.message).trim(), b.pret ? 1 : 0,
-    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim()
+    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(),
+    match ? match.id : null
   );
   state.bumpVersion();
-  res.status(201).json({ id: result.lastInsertRowid });
+  res.status(201).json({ id: result.lastInsertRowid, matchedClientId: match ? match.id : null });
 });
 
 /* ---------------------------------------------------------------------- */
@@ -123,17 +139,19 @@ adminRouter.post('/appointments', (req, res) => {
   if (services.length === 0) { res.status(400).json({ error: 'missing_services' }); return; }
   const createdAt = new Date().toISOString();
   const status = ['en_attente', 'confirme', 'annule'].includes(b.status) ? b.status : 'confirme';
+  const match = state.findMatchingClient(b.tel, b.email, b.nom);
   const result = db.prepare(`
     INSERT INTO appointments
       (created_at, nom, tel, email, marque, modele, annee, km, immat, services, message, pret, date, creneau, flexible, contactpref, status, client_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     createdAt, str(b.nom).trim(), str(b.tel).trim(), str(b.email).trim(),
     str(b.marque).trim(), str(b.modele).trim(), str(b.annee).trim(), str(b.km).trim(), str(b.immat).trim(),
     JSON.stringify(services), str(b.message).trim(), b.pret ? 1 : 0,
-    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(), status
+    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(), status,
+    match ? match.id : null
   );
-  res.status(201).json({ id: result.lastInsertRowid });
+  res.status(201).json({ id: result.lastInsertRowid, matchedClientId: match ? match.id : null });
 });
 
 adminRouter.patch('/appointments/:id', (req, res) => {
@@ -276,9 +294,10 @@ function createDoc(table, req, res, defaultStatut) {
   if (items.length === 0) { res.status(400).json({ error: 'missing_items' }); return; }
   const vehiculeId = b.vehiculeId ? Number(b.vehiculeId) : null;
   const date = str(b.date).trim() || new Date().toISOString().slice(0, 10);
+  const discount = toDiscount(b);
   const result = db.prepare(`
-    INSERT INTO ${table} (client_id, vehicule_id, date, statut, items) VALUES (?, ?, ?, ?, ?)
-  `).run(clientId, vehiculeId, date, defaultStatut, JSON.stringify(items));
+    INSERT INTO ${table} (client_id, vehicule_id, date, statut, items, discount_type, discount_value) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(clientId, vehiculeId, date, defaultStatut, JSON.stringify(items), discount.type, discount.value);
   res.status(201).json({ id: result.lastInsertRowid });
 }
 
@@ -297,16 +316,21 @@ function updateDoc(table, statutOptions, req, res) {
   let items = existing.items;
   let vehiculeId = existing.vehicule_id;
   let date = existing.date;
+  let discountType = existing.discount_type;
+  let discountValue = existing.discount_value;
   if (b.items !== undefined) {
     const newItems = toItemsArray(b.items);
     if (newItems.length === 0) { res.status(400).json({ error: 'missing_items' }); return; }
     items = JSON.stringify(newItems);
     vehiculeId = b.vehiculeId ? Number(b.vehiculeId) : null;
     date = str(b.date).trim() || existing.date;
+    const discount = toDiscount(b);
+    discountType = discount.type;
+    discountValue = discount.value;
   }
 
-  db.prepare(`UPDATE ${table} SET statut = ?, items = ?, vehicule_id = ?, date = ? WHERE id = ?`)
-    .run(statut, items, vehiculeId, date, id);
+  db.prepare(`UPDATE ${table} SET statut = ?, items = ?, vehicule_id = ?, date = ?, discount_type = ?, discount_value = ? WHERE id = ?`)
+    .run(statut, items, vehiculeId, date, discountType, discountValue, id);
   res.json({ ok: true });
 }
 

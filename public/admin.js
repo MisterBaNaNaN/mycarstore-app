@@ -16,8 +16,22 @@ function escapeHtml(str){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
 }
-function docTotal(entry){
+function docSubtotal(entry){
   return (entry.items || []).reduce(function(s, it){ return s + (it.qty || 0) * (it.price || 0); }, 0);
+}
+function docDiscountAmount(entry){
+  var subtotal = docSubtotal(entry);
+  if(entry.discountType === 'percent') return subtotal * ((entry.discountValue || 0) / 100);
+  if(entry.discountType === 'fixed') return Math.min(subtotal, entry.discountValue || 0);
+  return 0;
+}
+function docTotal(entry){
+  return Math.max(0, docSubtotal(entry) - docDiscountAmount(entry));
+}
+function discountLabel(entry){
+  if(entry.discountType === 'percent') return '-' + entry.discountValue + '%';
+  if(entry.discountType === 'fixed') return '-' + eur(entry.discountValue);
+  return '';
 }
 function findClient(id){
   id = parseInt(id, 10);
@@ -250,6 +264,7 @@ function openDocForm(clientId, kind, entry){
       return '<option value="' + v.id + '"' + (isEdit && entry.vehiculeId === v.id ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
     }).join('') : '');
 
+  var hasDiscount = isEdit && entry.discountType;
   openModal(
     '<h3>' + title + '</h3>' +
     '<form id="docForm">' +
@@ -257,6 +272,16 @@ function openDocForm(clientId, kind, entry){
       '<label style="display:block; margin-bottom:8px;">Lignes<span class="req">*</span></label>' +
       '<div id="docItems"></div>' +
       '<button type="button" id="addLineBtn" class="btn btn-line btn-sm" style="margin-top:6px;">+ Ajouter une ligne</button>' +
+      '<div class="field-grid two" style="margin:18px 0 4px;">' +
+        '<div class="field"><label>Remise</label><select name="discountType">' +
+          '<option value=""' + (!hasDiscount ? ' selected' : '') + '>Aucune</option>' +
+          '<option value="percent"' + (isEdit && entry.discountType === 'percent' ? ' selected' : '') + '>Pourcentage (%)</option>' +
+          '<option value="fixed"' + (isEdit && entry.discountType === 'fixed' ? ' selected' : '') + '>Montant fixe (€)</option>' +
+        '</select></div>' +
+        '<div class="field"><label>Valeur de la remise</label><input type="number" name="discountValue" min="0" step="0.01" value="' + (hasDiscount ? entry.discountValue : '') + '" ' + (hasDiscount ? '' : 'disabled') + '></div>' +
+      '</div>' +
+      '<div class="doc-grand-total" id="docSubtotalRow" style="border-top:none; padding-top:0; margin-top:0; display:none;">Sous-total <strong id="docSubtotal">0,00 €</strong></div>' +
+      '<div class="doc-grand-total" id="docDiscountRow" style="border-top:none; padding-top:0; margin-top:0; display:none; color:var(--warn);">Remise <strong id="docDiscountAmount">-0,00 €</strong></div>' +
       '<div class="doc-grand-total">Total <strong id="docGrandTotal">0,00 €</strong></div>' +
       '<div class="field" style="margin:18px 0 20px;"><label>Date</label><input type="date" name="date" value="' + (isEdit ? entry.date : todayStr()) + '"></div>' +
       '<div class="modal-actions">' +
@@ -269,6 +294,19 @@ function openDocForm(clientId, kind, entry){
   var form = document.getElementById('docForm');
   var itemsWrap = document.getElementById('docItems');
   var grandTotalEl = document.getElementById('docGrandTotal');
+  var subtotalRow = document.getElementById('docSubtotalRow');
+  var subtotalEl = document.getElementById('docSubtotal');
+  var discountRow = document.getElementById('docDiscountRow');
+  var discountAmountEl = document.getElementById('docDiscountAmount');
+  var discountTypeSelect = form.discountType;
+  var discountValueInput = form.discountValue;
+
+  discountTypeSelect.addEventListener('change', function(){
+    discountValueInput.disabled = !discountTypeSelect.value;
+    if(!discountTypeSelect.value){ discountValueInput.value = ''; }
+    updateGrandTotal();
+  });
+  discountValueInput.addEventListener('input', updateGrandTotal);
 
   function updateGrandTotal(){
     var sum = 0;
@@ -277,7 +315,23 @@ function openDocForm(clientId, kind, entry){
       var p = parseFloat(row.querySelector('.di-price').value) || 0;
       sum += q * p;
     });
-    grandTotalEl.textContent = eur(sum);
+    var discountType = discountTypeSelect.value;
+    var discountValue = parseFloat(discountValueInput.value) || 0;
+    var discountAmount = 0;
+    if(discountType === 'percent'){ discountAmount = sum * (Math.min(discountValue, 100) / 100); }
+    else if(discountType === 'fixed'){ discountAmount = Math.min(sum, discountValue); }
+    var total = Math.max(0, sum - discountAmount);
+
+    if(discountType){
+      subtotalRow.style.display = 'flex';
+      discountRow.style.display = 'flex';
+      subtotalEl.textContent = eur(sum);
+      discountAmountEl.textContent = '-' + eur(discountAmount);
+    } else {
+      subtotalRow.style.display = 'none';
+      discountRow.style.display = 'none';
+    }
+    grandTotalEl.textContent = eur(total);
   }
 
   function addRow(prefill){
@@ -329,7 +383,9 @@ function openDocForm(clientId, kind, entry){
     var payload = {
       vehiculeId: form.vehiculeId.value || null,
       date: form.date.value || todayStr(),
-      items: items
+      items: items,
+      discountType: discountTypeSelect.value || null,
+      discountValue: parseFloat(discountValueInput.value) || 0
     };
     var req;
     if(isEdit){
@@ -403,7 +459,9 @@ function openPrintableDoc(clientId, itemId, kind){
   if(!entry) return;
 
   var veh = entry.vehiculeId ? c.vehicules.find(function(v){ return v.id === entry.vehiculeId; }) : null;
+  var subtotal = docSubtotal(entry);
   var total = docTotal(entry);
+  var hasDiscount = entry.discountType && docDiscountAmount(entry) > 0;
   var docNumber = (kind === 'quote' ? 'DEVIS-' : 'FACT-') + entry.id;
   var docTitle = kind === 'quote' ? 'Devis' : 'Facture';
 
@@ -449,7 +507,13 @@ function openPrintableDoc(clientId, itemId, kind){
         (veh ? '<div class="party"><h3>Véhicule</h3><p>' + escapeHtml([veh.marque, veh.modele].filter(Boolean).join(' ')) + (veh.immat ? '<br>Immat. ' + escapeHtml(veh.immat) : '') + (veh.annee ? '<br>Année ' + escapeHtml(veh.annee) : '') + '</p></div>' : '') +
       '</div>' +
       '<table><thead><tr><th>Désignation</th><th class="num">Qté</th><th class="num">Prix unitaire</th><th class="num">Total</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
-      '<div class="totals"><div class="row grand"><span>Total ' + (kind === 'quote' ? 'devis' : 'TTC') + '</span><span>' + eur(total) + '</span></div></div>' +
+      '<div class="totals">' +
+        (hasDiscount
+          ? '<div class="row"><span>Sous-total</span><span>' + eur(subtotal) + '</span></div>' +
+            '<div class="row"><span>Remise (' + escapeHtml(discountLabel(entry)) + ')</span><span>-' + eur(docDiscountAmount(entry)) + '</span></div>'
+          : '') +
+        '<div class="row grand"><span>Total ' + (kind === 'quote' ? 'devis' : 'TTC') + '</span><span>' + eur(total) + '</span></div>' +
+      '</div>' +
       '<div class="footer">MyCarStore — SAS MYCARSTORE SERVICES — SIRET 944 840 842 00016<br>' +
         (kind === 'quote' ? 'Devis valable 30 jours à compter de sa date d\'émission. Sans engagement.' : 'Facture émise par SAS MYCARSTORE SERVICES.') +
       '</div>' +
@@ -600,6 +664,11 @@ function openApptForm(existing){
     var req = isEdit
       ? api('PATCH', '/api/admin/appointments/' + existing.id + '/details', payload)
       : api('POST', '/api/admin/appointments', payload);
+    if(!isEdit){
+      req.then(function(res){
+        if(res && res.matchedClientId){ notice('Rendez-vous créé — client existant relié automatiquement.', 'ok'); }
+      }).catch(function(){});
+    }
     afterAction(req);
     closeModal();
   });
@@ -806,7 +875,8 @@ function renderClientDetail(id){
     if(a.clientId) return false;
     var telMatch = c.tel && a.tel && a.tel.replace(/\s+/g,'') === c.tel.replace(/\s+/g,'');
     var emailMatch = c.email && a.email && a.email.toLowerCase() === c.email.toLowerCase();
-    return telMatch || emailMatch;
+    var nomMatch = c.nom && a.nom && c.nom.trim().toLowerCase() === a.nom.trim().toLowerCase();
+    return telMatch || emailMatch || nomMatch;
   });
 
   function apptRow(a, showLink){
@@ -825,13 +895,16 @@ function renderClientDetail(id){
     var statutOptions = kind === 'quote' ? ['envoyé','accepté','refusé'] : ['impayée','payée'];
     return '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Description</th><th>Véhicule</th><th>Date</th><th>Total</th><th>Statut</th><th></th></tr></thead><tbody>' +
       list.slice().sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); }).map(function(entry){
+        var subtotal = docSubtotal(entry);
         var total = docTotal(entry);
+        var hasDiscount = entry.discountType && docDiscountAmount(entry) > 0;
         var veh = entry.vehiculeId ? c.vehicules.find(function(v){ return v.id === entry.vehiculeId; }) : null;
         var itemsText = entry.items.map(function(it){ return it.label + ' (×' + it.qty + ')'; }).join(', ');
+        var discountLine = hasDiscount ? '\nSous-total : ' + eur(subtotal) + '\nRemise (' + discountLabel(entry) + ') : -' + eur(docDiscountAmount(entry)) : '';
         var mailBody = kind === 'quote'
-          ? 'Bonjour ' + c.nom + ',\n\nVoici le devis établi par MyCarStore :\n\n' + entry.items.map(function(it){ return '- ' + it.label + ' × ' + it.qty + ' — ' + eur(it.price) + ' l\'unité'; }).join('\n') + '\n\nTotal : ' + eur(total) + '\n\nUn PDF détaillé peut être généré depuis l\'atelier sur demande.\n\nMyCarStore — 03 65 67 69 62'
-          : 'Bonjour ' + c.nom + ',\n\nVoici la facture MyCarStore :\n\n' + entry.items.map(function(it){ return '- ' + it.label + ' × ' + it.qty + ' — ' + eur(it.price) + ' l\'unité'; }).join('\n') + '\n\nTotal : ' + eur(total) + '\nStatut : ' + entry.statut + '\n\nMyCarStore — 03 65 67 69 62';
-        var smsBody = (kind === 'quote' ? 'Devis MyCarStore: ' : 'Facture MyCarStore: ') + itemsText + ' - Total ' + eur(total);
+          ? 'Bonjour ' + c.nom + ',\n\nVoici le devis établi par MyCarStore :\n\n' + entry.items.map(function(it){ return '- ' + it.label + ' × ' + it.qty + ' — ' + eur(it.price) + ' l\'unité'; }).join('\n') + discountLine + '\n\nTotal : ' + eur(total) + '\n\nUn PDF détaillé peut être généré depuis l\'atelier sur demande.\n\nMyCarStore — 03 65 67 69 62'
+          : 'Bonjour ' + c.nom + ',\n\nVoici la facture MyCarStore :\n\n' + entry.items.map(function(it){ return '- ' + it.label + ' × ' + it.qty + ' — ' + eur(it.price) + ' l\'unité'; }).join('\n') + discountLine + '\n\nTotal : ' + eur(total) + '\nStatut : ' + entry.statut + '\n\nMyCarStore — 03 65 67 69 62';
+        var smsBody = (kind === 'quote' ? 'Devis MyCarStore: ' : 'Facture MyCarStore: ') + itemsText + (hasDiscount ? ' - Remise ' + discountLabel(entry) : '') + ' - Total ' + eur(total);
         var mailHref = 'mailto:' + encodeURIComponent(c.email || '') + '?subject=' + encodeURIComponent((kind === 'quote' ? 'Devis' : 'Facture') + ' MyCarStore') + '&body=' + encodeURIComponent(mailBody);
         var smsHref = 'sms:' + (c.tel ? c.tel.replace(/\s+/g, '') : '') + '?&body=' + encodeURIComponent(smsBody);
         var tone = kind === 'quote'
@@ -841,7 +914,7 @@ function renderClientDetail(id){
           '<td>' + escapeHtml(itemsText) + '</td>' +
           '<td class="muted">' + (veh ? escapeHtml([veh.marque, veh.modele].filter(Boolean).join(' ')) : '—') + '</td>' +
           '<td class="muted">' + escapeHtml(fmtFr(entry.date)) + '</td>' +
-          '<td>' + eur(total) + '</td>' +
+          '<td>' + eur(total) + (hasDiscount ? '<br><span class="muted" style="font-size:0.72rem;">' + escapeHtml(discountLabel(entry)) + '</span>' : '') + '</td>' +
           '<td><span class="chip-status ' + tone + '"><span class="dot"></span>' + escapeHtml(entry.statut) + '</span></td>' +
           '<td><div class="row-actions">' +
             '<button type="button" class="btn btn-fill" data-action="print-pdf" data-id="' + c.id + '" data-did="' + entry.id + '" data-kind="' + kind + '">PDF</button>' +
