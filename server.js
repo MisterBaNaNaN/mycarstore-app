@@ -287,6 +287,13 @@ adminRouter.delete('/vehicules/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+function applyVehiculeKm(vehiculeId, kmValue) {
+  if (!vehiculeId) return;
+  const km = str(kmValue).trim();
+  if (!km) return;
+  db.prepare('UPDATE vehicules SET km = ? WHERE id = ?').run(km, vehiculeId);
+}
+
 function createDoc(table, req, res, defaultStatut) {
   const clientId = Number(req.params.id);
   const b = req.body || {};
@@ -298,6 +305,7 @@ function createDoc(table, req, res, defaultStatut) {
   const result = db.prepare(`
     INSERT INTO ${table} (client_id, vehicule_id, date, statut, items, discount_type, discount_value) VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(clientId, vehiculeId, date, defaultStatut, JSON.stringify(items), discount.type, discount.value);
+  applyVehiculeKm(vehiculeId, b.vehiculeKm);
   res.status(201).json({ id: result.lastInsertRowid });
 }
 
@@ -331,6 +339,7 @@ function updateDoc(table, statutOptions, req, res) {
 
   db.prepare(`UPDATE ${table} SET statut = ?, items = ?, vehicule_id = ?, date = ?, discount_type = ?, discount_value = ? WHERE id = ?`)
     .run(statut, items, vehiculeId, date, discountType, discountValue, id);
+  applyVehiculeKm(vehiculeId, b.vehiculeKm);
   res.json({ ok: true });
 }
 

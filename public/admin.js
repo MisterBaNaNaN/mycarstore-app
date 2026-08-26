@@ -269,6 +269,10 @@ function openDocForm(clientId, kind, entry){
     '<h3>' + title + '</h3>' +
     '<form id="docForm">' +
       '<div class="field" style="margin-bottom:16px;"><label>Véhicule concerné</label><select name="vehiculeId">' + vehOptions + '</select></div>' +
+      '<div class="field" id="vehKmField" style="margin-bottom:16px; display:none;">' +
+        '<label>Kilométrage relevé <span style="text-transform:none; letter-spacing:0;">(mettra à jour la fiche du véhicule)</span></label>' +
+        '<input type="number" name="vehiculeKm" min="0" step="100">' +
+      '</div>' +
       '<label style="display:block; margin-bottom:8px;">Lignes<span class="req">*</span></label>' +
       '<div id="docItems"></div>' +
       '<button type="button" id="addLineBtn" class="btn btn-line btn-sm" style="margin-top:6px;">+ Ajouter une ligne</button>' +
@@ -300,6 +304,23 @@ function openDocForm(clientId, kind, entry){
   var discountAmountEl = document.getElementById('docDiscountAmount');
   var discountTypeSelect = form.discountType;
   var discountValueInput = form.discountValue;
+  var vehSelect = form.vehiculeId;
+  var vehKmField = document.getElementById('vehKmField');
+  var vehKmInput = form.vehiculeKm;
+
+  function syncVehKmField(){
+    var vid = vehSelect.value ? parseInt(vehSelect.value, 10) : null;
+    var veh = vid && c ? c.vehicules.find(function(v){ return v.id === vid; }) : null;
+    if(veh){
+      vehKmField.style.display = '';
+      vehKmInput.value = veh.km || '';
+    } else {
+      vehKmField.style.display = 'none';
+      vehKmInput.value = '';
+    }
+  }
+  vehSelect.addEventListener('change', syncVehKmField);
+  syncVehKmField();
 
   discountTypeSelect.addEventListener('change', function(){
     discountValueInput.disabled = !discountTypeSelect.value;
@@ -382,6 +403,7 @@ function openDocForm(clientId, kind, entry){
     if(items.length === 0) return;
     var payload = {
       vehiculeId: form.vehiculeId.value || null,
+      vehiculeKm: form.vehiculeId.value ? vehKmInput.value.trim() : '',
       date: form.date.value || todayStr(),
       items: items,
       discountType: discountTypeSelect.value || null,
