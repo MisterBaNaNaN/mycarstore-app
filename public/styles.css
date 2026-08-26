@@ -713,6 +713,7 @@ header.scrolled + .closure-banner .wrap{padding-top:1px;}
 .admin-gate{
   min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
 }
+.admin-gate[hidden]{ display:none; }
 .login-card{
   width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:3px;
   padding:36px 32px;
