@@ -3,6 +3,7 @@ const express = require('express');
 const db = require('./lib/db');
 const state = require('./lib/state');
 const auth = require('./lib/auth');
+const notify = require('./lib/notify');
 
 const app = express();
 app.use(express.json());
@@ -154,16 +155,18 @@ adminRouter.post('/appointments', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid, matchedClientId: match ? match.id : null });
 });
 
-adminRouter.patch('/appointments/:id', (req, res) => {
+adminRouter.patch('/appointments/:id', async (req, res) => {
   const id = Number(req.params.id);
   const status = req.body && req.body.status;
   if (!['en_attente', 'confirme', 'annule'].includes(status)) { res.status(400).json({ error: 'bad_status' }); return; }
   const info = db.prepare('UPDATE appointments SET status = ? WHERE id = ?').run(status, id);
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
-  res.json({ ok: true });
+  const row = db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
+  const notified = await notify.notifyAppointment(row, status);
+  res.json({ ok: true, notified });
 });
 
-adminRouter.patch('/appointments/:id/details', (req, res) => {
+adminRouter.patch('/appointments/:id/details', async (req, res) => {
   const id = Number(req.params.id);
   const b = req.body || {};
   if (!str(b.nom).trim() || !str(b.tel).trim() || !str(b.date).trim() || !str(b.creneau).trim()) {
@@ -184,7 +187,9 @@ adminRouter.patch('/appointments/:id/details', (req, res) => {
     str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(), id
   );
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
-  res.json({ ok: true });
+  const row = db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
+  const notified = await notify.notifyAppointment(row, 'modifie');
+  res.json({ ok: true, notified });
 });
 
 adminRouter.delete('/appointments/:id', (req, res) => {

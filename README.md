@@ -27,6 +27,32 @@ Le dépôt GitHub est déjà prêt : [github.com/MisterBaNaNaN/mycarstore-app](h
 5. Une fois déployé, ouvre l'onglet **Shell** du service (ou une commande "one-off") et lance `npm run seed` pour créer le premier compte admin en ligne — il affichera un identifiant/mot de passe, à noter.
 6. Railway donne une URL du type `mycarstore-app.up.railway.app`, utilisable telle quelle. Un nom de domaine personnalisé (ex. mycarstore.fr) peut être attaché plus tard depuis les paramètres du projet, une fois acheté.
 
+## Notifications automatiques au client (e-mail + SMS)
+
+Dès qu'un rendez-vous est confirmé, annulé, remis en attente ou modifié depuis l'admin, le client reçoit automatiquement un e-mail et/ou un SMS. Tant que les clés ci-dessous ne sont pas configurées, cette fonctionnalité reste silencieuse (aucune erreur, juste rien n'est envoyé) — le reste de l'admin fonctionne normalement.
+
+### E-mail (Resend)
+
+1. Crée un compte sur [resend.com](https://resend.com) (gratuit jusqu'à 3000 e-mails/mois).
+2. Dans **Domains**, ajoute `mycarstore.fr` et suis les instructions pour ajouter les enregistrements DNS (SPF/DKIM) chez ton hébergeur de domaine — Resend vérifie automatiquement une fois les enregistrements propagés (quelques minutes à quelques heures).
+   - Sans domaine vérifié, Resend n'autorise l'envoi qu'à l'adresse e-mail de ton propre compte — utile pour tester, pas pour de vrais clients.
+3. Dans **API Keys**, crée une clé.
+4. Sur Railway (Variables du service) :
+   - `RESEND_API_KEY` = la clé créée
+   - `FROM_EMAIL` = `MyCarStore <contact@mycarstore.fr>` (une fois le domaine vérifié — sinon garde la valeur par défaut de test)
+
+### SMS (Twilio)
+
+1. Crée un compte sur [twilio.com](https://www.twilio.com) (carte bancaire requise, un crédit d'essai est offert).
+2. Achète un numéro Twilio pouvant envoyer des SMS internationaux (un numéro français ou américain fonctionne pour envoyer vers la France).
+3. Note ton **Account SID** et ton **Auth Token** (page d'accueil de la console Twilio).
+4. Sur Railway (Variables du service) :
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_FROM_NUMBER` = le numéro Twilio, format international (ex. `+33755501234`)
+
+⚠️ Avec un numéro Twilio standard, le client verra un numéro inconnu comme expéditeur, pas "MyCarStore". Pour un nom d'expéditeur professionnel en France, Twilio propose l'enregistrement d'un **Alphanumeric Sender ID**, une démarche de vérification d'identité pro supplémentaire (voir leur documentation) — pas nécessaire pour que ça fonctionne, mais plus crédible pour les clients.
+
 ## Sécurité — à faire avant un vrai lancement public
 
 - Change le mot de passe admin par défaut dès la première connexion (bouton "Mot de passe" dans l'admin).

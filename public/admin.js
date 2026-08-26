@@ -104,12 +104,27 @@ function notice(text, tone){
 
 function afterAction(promise, okMsg){
   return promise
-    .then(function(){ return refreshState(); })
-    .then(function(){ if(okMsg) notice(okMsg, 'ok'); })
+    .then(function(res){ return refreshState().then(function(){ return res; }); })
+    .then(function(res){
+      var msg = typeof okMsg === 'function' ? okMsg(res) : okMsg;
+      if(msg) notice(msg, 'ok');
+    })
     .catch(function(err){
       if(err && err.message === 'unauthenticated') return;
       notice('Échec de l\'enregistrement.', 'warn');
     });
+}
+
+function notifiedSummary(res){
+  var n = res && res.notified;
+  if(!n) return null;
+  var sent = [];
+  if(n.email && n.email.ok) sent.push('e-mail');
+  if(n.sms && n.sms.ok) sent.push('SMS');
+  if(sent.length) return 'Client prévenu par ' + sent.join(' et ') + '.';
+  var failed = (n.email && n.email.error) || (n.sms && n.sms.error);
+  if(failed) return 'Échec de la notification au client (vérifiez la config e-mail/SMS).';
+  return null;
 }
 
 /* ---------- login flow ---------- */
@@ -584,8 +599,10 @@ function openApptDetail(apptId){
       var act = btn.getAttribute('data-action');
       btn.onclick = function(){
         var status = act === 'confirm-appt' ? 'confirme' : act === 'cancel-appt' ? 'annule' : 'en_attente';
-        api('PATCH', '/api/admin/appointments/' + apptId, {status: status}).then(function(){
+        api('PATCH', '/api/admin/appointments/' + apptId, {status: status}).then(function(res){
           a.status = status;
+          var msg = notifiedSummary(res);
+          if(msg) notice(msg, 'ok');
           return refreshState();
         }).then(renderActions).catch(function(){});
       };
@@ -691,7 +708,7 @@ function openApptForm(existing){
         if(res && res.matchedClientId){ notice('Rendez-vous créé — client existant relié automatiquement.', 'ok'); }
       }).catch(function(){});
     }
-    afterAction(req);
+    afterAction(req, isEdit ? notifiedSummary : null);
     closeModal();
   });
 }
@@ -1086,11 +1103,11 @@ document.getElementById('adminApp').addEventListener('click', function(e){
   } else if(action === 'open-vacation-modal'){
     openVacationForm();
   } else if(action === 'confirm-appt'){
-    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'confirme'}));
+    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'confirme'}), notifiedSummary);
   } else if(action === 'cancel-appt'){
-    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'annule'}));
+    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'annule'}), notifiedSummary);
   } else if(action === 'pending-appt'){
-    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'en_attente'}));
+    afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'en_attente'}), notifiedSummary);
   } else if(action === 'convert-to-client'){
     api('POST', '/api/admin/appointments/' + id + '/convert-to-client').then(function(res){
       adminState.tab = 'client';
