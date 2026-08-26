@@ -541,7 +541,7 @@ function openPrintableDoc(clientId, itemId, kind){
       '</div>' +
       '<div class="parties">' +
         '<div class="party"><h3>Client</h3><p>' + escapeHtml(c.nom) + (c.adresse ? '<br>' + escapeHtml(c.adresse) : '') + (c.tel ? '<br>' + escapeHtml(c.tel) : '') + (c.email ? '<br>' + escapeHtml(c.email) : '') + '</p></div>' +
-        (veh ? '<div class="party"><h3>Véhicule</h3><p>' + escapeHtml([veh.marque, veh.modele].filter(Boolean).join(' ')) + (veh.immat ? '<br>Immat. ' + escapeHtml(veh.immat) : '') + (veh.annee ? '<br>Année ' + escapeHtml(veh.annee) : '') + '</p></div>' : '') +
+        (veh ? '<div class="party"><h3>Véhicule</h3><p>' + escapeHtml([veh.marque, veh.modele].filter(Boolean).join(' ')) + (veh.immat ? '<br>Immat. ' + escapeHtml(veh.immat) : '') + (veh.annee ? '<br>Année ' + escapeHtml(veh.annee) : '') + (veh.km ? '<br>Kilométrage : ' + escapeHtml(veh.km) + ' km' : '') + '</p></div>' : '') +
       '</div>' +
       '<table><thead><tr><th>Désignation</th><th class="num">Qté</th><th class="num">Prix unitaire</th><th class="num">Total</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
       '<div class="totals">' +
