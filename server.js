@@ -1,9 +1,12 @@
+process.env.TZ = process.env.TZ || 'Europe/Paris';
+
 const path = require('node:path');
 const express = require('express');
 const db = require('./lib/db');
 const state = require('./lib/state');
 const auth = require('./lib/auth');
 const notify = require('./lib/notify');
+const reminders = require('./lib/reminders');
 
 const app = express();
 app.use(express.json());
@@ -118,6 +121,10 @@ adminRouter.use(auth.requireAuth);
 
 adminRouter.get('/state', (req, res) => {
   res.json(state.getAdminState());
+});
+
+adminRouter.get('/reports', (req, res) => {
+  res.json(state.getReports());
 });
 
 adminRouter.post('/status', (req, res) => {
@@ -388,4 +395,5 @@ app.get('/admin', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`MyCarStore en écoute sur http://localhost:${PORT}`);
+  reminders.startReminderLoop(30 * 60 * 1000);
 });

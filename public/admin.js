@@ -60,6 +60,17 @@ function apptStatusActions(a){
 /* ---------- API + state ---------- */
 var STATE = {status:{mode:'open'}, appointments:[], clients:[]};
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
+var REPORTS = null;
+
+function loadReports(){
+  return api('GET', '/api/admin/reports').then(function(data){
+    REPORTS = data;
+    renderAdmin();
+  }).catch(function(err){
+    if(err && err.message === 'unauthenticated') return;
+    notice('Impossible de charger les rapports.', 'warn');
+  });
+}
 
 function api(method, url, body){
   var opts = {method:method, credentials:'include'};
@@ -576,7 +587,9 @@ function openApptDetail(apptId){
 
   openModal(
     '<h3>' + escapeHtml(a.nom) + '</h3>' +
-    '<p class="hint" style="margin-bottom:20px;">' + escapeHtml(fmtFr(a.date)) + ' · ' + escapeHtml(a.creneau || '') + '</p>' +
+    '<p class="hint" style="margin-bottom:20px;">' + escapeHtml(fmtFr(a.date)) + ' · ' + escapeHtml(a.creneau || '') +
+      (a.reminderSent ? ' · <span style="color:var(--lime);">Rappel envoyé ✓</span>' : '') +
+    '</p>' +
     '<div class="field-grid two" style="margin-bottom:4px;">' +
       '<div class="field"><label>Véhicule</label><div style="padding:8px 0; font-size:0.92rem;">' + escapeHtml(vehicule) + '</div></div>' +
       '<div class="field"><label>Téléphone</label><div style="padding:8px 0; font-size:0.92rem;"><a href="tel:' + escapeHtml((a.tel || '').replace(/\s+/g, '')) + '" style="color:var(--paper);">' + escapeHtml(a.tel) + '</a></div></div>' +
@@ -1037,6 +1050,84 @@ function renderClientDetail(id){
       : '');
 }
 
+/* ---------- render: reports ---------- */
+function renderReports(){
+  if(!REPORTS){
+    return '' +
+      '<div class="admin-section-title">Rapports</div>' +
+      '<div class="admin-section-sub">Chargement…</div>';
+  }
+  var r = REPORTS;
+
+  function monthLabel(m){
+    var l = new Date(m + '-01T00:00:00').toLocaleDateString('fr-FR', {month:'short', year:'2-digit'});
+    return l.charAt(0).toUpperCase() + l.slice(1);
+  }
+  function bars(values, formatValue){
+    var max = Math.max.apply(null, values.concat([1]));
+    return r.months.map(function(m, i){
+      var v = values[i];
+      var pct = max > 0 ? Math.round((v / max) * 100) : 0;
+      return '<div class="bar-col">' +
+        '<div class="bar-track"><div class="bar-fill" style="height:' + Math.max(pct, v > 0 ? 3 : 0) + '%;"></div></div>' +
+        '<div class="bar-value">' + formatValue(v) + '</div>' +
+        '<div class="bar-label">' + monthLabel(m) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  var revenueValues = r.months.map(function(m){ return r.revenueByMonth[m]; });
+  var apptsValues = r.months.map(function(m){ return r.apptsByMonth[m]; });
+
+  var topServicesRows = r.topServices.length
+    ? r.topServices.map(function(s){ return '<tr><td>' + escapeHtml(s.label) + '</td><td>' + s.count + '</td></tr>'; }).join('')
+    : '<tr><td colspan="2" class="admin-empty">Aucune donnée pour le moment.</td></tr>';
+
+  var unpaidRows = r.unpaidInvoices.length
+    ? r.unpaidInvoices.map(function(inv){
+        return '<tr><td>' + escapeHtml(inv.clientNom) + '</td><td>' + escapeHtml(fmtFr(inv.date)) + '</td><td>' + eur(inv.total) + '</td>' +
+          '<td><button type="button" class="btn btn-line" data-action="open-client" data-id="' + inv.clientId + '">Voir la fiche</button></td></tr>';
+      }).join('')
+    : '<tr><td colspan="4" class="admin-empty">Aucune facture impayée.</td></tr>';
+
+  return '' +
+    '<div class="admin-section-title">Rapports</div>' +
+    '<div class="admin-section-sub">Chiffre d\'affaires, activité et impayés sur les 6 derniers mois.</div>' +
+    '<div class="admin-grid">' +
+      '<div class="stat-card"><div class="label">CA encaissé (total)</div><div class="value ok">' + eur(r.totalRevenueAllTime) + '</div></div>' +
+      '<div class="stat-card"><div class="label">Total impayé</div><div class="value' + (r.totalUnpaid > 0 ? ' warn' : ' ok') + '">' + eur(r.totalUnpaid) + '</div></div>' +
+      '<div class="stat-card"><div class="label">Clients enregistrés</div><div class="value">' + r.clientCount + '</div></div>' +
+    '</div>' +
+    '<div class="admin-grid-2">' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Chiffre d\'affaires payé / mois</h3></div>' +
+        '<div class="bar-chart">' + bars(revenueValues, eur) + '</div>' +
+      '</div>' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Rendez-vous / mois</h3></div>' +
+        '<div class="bar-chart">' + bars(apptsValues, function(v){ return String(v); }) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="admin-grid-2">' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Statuts des rendez-vous</h3></div>' +
+        '<div class="admin-grid" style="margin-bottom:0;">' +
+          '<div class="stat-card"><div class="label">En attente</div><div class="value warn">' + r.statusCounts.en_attente + '</div></div>' +
+          '<div class="stat-card"><div class="label">Confirmés</div><div class="value ok">' + r.statusCounts.confirme + '</div></div>' +
+          '<div class="stat-card"><div class="label">Annulés</div><div class="value">' + r.statusCounts.annule + '</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head"><h3>Interventions les plus demandées</h3></div>' +
+        '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Intervention</th><th>Nombre</th></tr></thead><tbody>' + topServicesRows + '</tbody></table></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Factures impayées</h3></div>' +
+      '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Client</th><th>Date</th><th>Montant</th><th></th></tr></thead><tbody>' + unpaidRows + '</tbody></table></div>' +
+    '</div>';
+}
+
 /* ---------- shell / router ---------- */
 function renderAdmin(){
   var el = document.getElementById('adminApp');
@@ -1053,6 +1144,7 @@ function renderAdmin(){
   else if(adminState.tab === 'appointments') content = renderAppointments();
   else if(adminState.tab === 'clients') content = renderClients();
   else if(adminState.tab === 'client') content = renderClientDetail(adminState.clientId);
+  else if(adminState.tab === 'reports') content = renderReports();
   else content = renderDashboard();
 
   el.innerHTML =
@@ -1063,6 +1155,7 @@ function renderAdmin(){
         tabBtn('agenda', 'Agenda') +
         tabBtn('appointments', 'Rendez-vous' + (newCount ? ' · ' + newCount : '')) +
         tabBtn('clients', 'Clients') +
+        tabBtn('reports', 'Rapports') +
       '</div>' +
       '<div class="row-actions">' +
         '<a class="btn btn-line btn-sm" href="/">Voir le site public</a>' +
@@ -1099,6 +1192,7 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     adminState.tab = target.getAttribute('data-tab');
     adminState.clientId = null;
     renderAdmin();
+    if(adminState.tab === 'reports') loadReports();
   } else if(action === 'logout'){
     api('POST', '/api/logout').then(function(){ showLoginGate(); }).catch(function(){});
   } else if(action === 'change-password'){
