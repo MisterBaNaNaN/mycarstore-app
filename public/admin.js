@@ -189,33 +189,35 @@ function openClientForm(client){
   });
 }
 
-function openVehicleForm(clientId){
+function openVehicleForm(clientId, vehicle){
+  var isEdit = !!vehicle;
+  var v = vehicle || {};
+  var carburants = ['', 'Essence', 'Diesel', 'Hybride', 'Électrique', 'GPL'];
   openModal(
-    '<h3>Ajouter un véhicule</h3>' +
+    '<h3>' + (isEdit ? 'Modifier le véhicule' : 'Ajouter un véhicule') + '</h3>' +
     '<form id="vehForm">' +
       '<div class="field-grid two">' +
-        '<div class="field"><label>Marque<span class="req">*</span></label><input type="text" name="marque" required></div>' +
-        '<div class="field"><label>Modèle</label><input type="text" name="modele"></div>' +
+        '<div class="field"><label>Marque<span class="req">*</span></label><input type="text" name="marque" required value="' + escapeHtml(v.marque || '') + '"></div>' +
+        '<div class="field"><label>Modèle</label><input type="text" name="modele" value="' + escapeHtml(v.modele || '') + '"></div>' +
       '</div>' +
       '<div class="field-grid two">' +
-        '<div class="field"><label>Année</label><input type="number" name="annee" min="1970" max="2026"></div>' +
-        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1000"></div>' +
+        '<div class="field"><label>Année</label><input type="number" name="annee" min="1970" max="2026" value="' + escapeHtml(v.annee || '') + '"></div>' +
+        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1000" value="' + escapeHtml(v.km || '') + '"></div>' +
       '</div>' +
       '<div class="field-grid two">' +
-        '<div class="field"><label>Immatriculation</label><input type="text" name="immat"></div>' +
+        '<div class="field"><label>Immatriculation</label><input type="text" name="immat" value="' + escapeHtml(v.immat || '') + '"></div>' +
         '<div class="field"><label>Carburant</label><select name="carburant">' +
-          '<option value="">Non précisé</option>' +
-          '<option>Essence</option><option>Diesel</option><option>Hybride</option><option>Électrique</option><option>GPL</option>' +
+          carburants.map(function(c){ return '<option' + (c === v.carburant ? ' selected' : '') + ' value="' + escapeHtml(c) + '">' + (c || 'Non précisé') + '</option>'; }).join('') +
         '</select></div>' +
       '</div>' +
-      '<div class="field-grid"><div class="field"><label>N° de série (VIN)</label><input type="text" name="vin"></div></div>' +
+      '<div class="field-grid"><div class="field"><label>N° de série (VIN)</label><input type="text" name="vin" value="' + escapeHtml(v.vin || '') + '"></div></div>' +
       '<div class="field-grid two">' +
-        '<div class="field"><label>Prochain contrôle technique</label><input type="date" name="prochainCT"></div>' +
-        '<div class="field"><label>Dernière révision</label><input type="date" name="derniereRevision"></div>' +
+        '<div class="field"><label>Prochain contrôle technique</label><input type="date" name="prochainCT" value="' + escapeHtml(v.prochainCT || '') + '"></div>' +
+        '<div class="field"><label>Dernière révision</label><input type="date" name="derniereRevision" value="' + escapeHtml(v.derniereRevision || '') + '"></div>' +
       '</div>' +
       '<div class="modal-actions">' +
         '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
-        '<button type="submit" class="btn btn-fill">Ajouter</button>' +
+        '<button type="submit" class="btn btn-fill">' + (isEdit ? 'Enregistrer' : 'Ajouter') + '</button>' +
       '</div>' +
     '</form>'
   );
@@ -225,22 +227,27 @@ function openVehicleForm(clientId){
     e.preventDefault();
     var marque = form.marque.value.trim();
     if(!marque) return;
-    afterAction(api('POST', '/api/admin/clients/' + clientId + '/vehicules', {
+    var payload = {
       marque: marque, modele: form.modele.value.trim(), annee: form.annee.value.trim(), km: form.km.value.trim(),
       immat: form.immat.value.trim(), carburant: form.carburant.value, vin: form.vin.value.trim(),
       prochainCT: form.prochainCT.value, derniereRevision: form.derniereRevision.value
-    }));
+    };
+    var req = isEdit
+      ? api('PATCH', '/api/admin/vehicules/' + vehicle.id, payload)
+      : api('POST', '/api/admin/clients/' + clientId + '/vehicules', payload);
+    afterAction(req);
     closeModal();
   });
 }
 
-function openDocForm(clientId, kind){
+function openDocForm(clientId, kind, entry){
+  var isEdit = !!entry;
   var c = findClient(clientId);
-  var title = kind === 'quote' ? 'Nouveau devis' : 'Nouvelle facture';
+  var title = isEdit ? (kind === 'quote' ? 'Modifier le devis' : 'Modifier la facture') : (kind === 'quote' ? 'Nouveau devis' : 'Nouvelle facture');
   var vehOptions = '<option value="">Aucun véhicule spécifique</option>' +
     (c ? c.vehicules.map(function(v){
       var label = [v.marque, v.modele].filter(Boolean).join(' ') + (v.immat ? ' · ' + v.immat : '');
-      return '<option value="' + v.id + '">' + escapeHtml(label) + '</option>';
+      return '<option value="' + v.id + '"' + (isEdit && entry.vehiculeId === v.id ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
     }).join('') : '');
 
   openModal(
@@ -251,10 +258,10 @@ function openDocForm(clientId, kind){
       '<div id="docItems"></div>' +
       '<button type="button" id="addLineBtn" class="btn btn-line btn-sm" style="margin-top:6px;">+ Ajouter une ligne</button>' +
       '<div class="doc-grand-total">Total <strong id="docGrandTotal">0,00 €</strong></div>' +
-      '<div class="field" style="margin:18px 0 20px;"><label>Date</label><input type="date" name="date" value="' + todayStr() + '"></div>' +
+      '<div class="field" style="margin:18px 0 20px;"><label>Date</label><input type="date" name="date" value="' + (isEdit ? entry.date : todayStr()) + '"></div>' +
       '<div class="modal-actions">' +
         '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
-        '<button type="submit" class="btn btn-fill">Créer</button>' +
+        '<button type="submit" class="btn btn-fill">' + (isEdit ? 'Enregistrer' : 'Créer') + '</button>' +
       '</div>' +
     '</form>'
   );
@@ -273,14 +280,14 @@ function openDocForm(clientId, kind){
     grandTotalEl.textContent = eur(sum);
   }
 
-  function addRow(){
+  function addRow(prefill){
     var row = document.createElement('div');
     row.className = 'doc-item-row';
     row.innerHTML =
-      '<input type="text" class="di-label" placeholder="Désignation">' +
-      '<input type="number" class="di-qty" placeholder="Qté" value="1" min="0" step="1">' +
-      '<input type="number" class="di-price" placeholder="Prix unitaire €" min="0" step="0.01">' +
-      '<span class="di-total">0,00 €</span>' +
+      '<input type="text" class="di-label" placeholder="Désignation" value="' + (prefill ? escapeHtml(prefill.label) : '') + '">' +
+      '<input type="number" class="di-qty" placeholder="Qté" value="' + (prefill ? prefill.qty : 1) + '" min="0" step="1">' +
+      '<input type="number" class="di-price" placeholder="Prix unitaire €" min="0" step="0.01" value="' + (prefill ? prefill.price : '') + '">' +
+      '<span class="di-total">' + eur(prefill ? prefill.qty * prefill.price : 0) + '</span>' +
       '<button type="button" class="di-remove" title="Retirer la ligne">×</button>';
     var qty = row.querySelector('.di-qty');
     var price = row.querySelector('.di-price');
@@ -300,8 +307,13 @@ function openDocForm(clientId, kind){
     itemsWrap.appendChild(row);
   }
 
-  addRow();
-  document.getElementById('addLineBtn').addEventListener('click', addRow);
+  if(isEdit && entry.items.length){
+    entry.items.forEach(function(it){ addRow(it); });
+    updateGrandTotal();
+  } else {
+    addRow();
+  }
+  document.getElementById('addLineBtn').addEventListener('click', function(){ addRow(); });
   form.querySelector('[data-close]').onclick = closeModal;
 
   form.addEventListener('submit', function(e){
@@ -319,8 +331,14 @@ function openDocForm(clientId, kind){
       date: form.date.value || todayStr(),
       items: items
     };
-    var endpoint = '/api/admin/clients/' + clientId + '/' + (kind === 'quote' ? 'quotes' : 'invoices');
-    afterAction(api('POST', endpoint, payload));
+    var req;
+    if(isEdit){
+      req = api('PATCH', '/api/admin/' + (kind === 'quote' ? 'quotes' : 'invoices') + '/' + entry.id, payload);
+    } else {
+      var endpoint = '/api/admin/clients/' + clientId + '/' + (kind === 'quote' ? 'quotes' : 'invoices');
+      req = api('POST', endpoint, payload);
+    }
+    afterAction(req);
     closeModal();
   });
 }
@@ -472,7 +490,9 @@ function openApptDetail(apptId){
     if(!wrap) return;
     wrap.innerHTML = apptStatusActions(a) + (a.clientId
       ? '<button type="button" class="btn btn-line" id="ma-client">Voir la fiche client</button>'
-      : '<button type="button" class="btn btn-line" id="ma-convert">Créer la fiche client</button>');
+      : '<button type="button" class="btn btn-line" id="ma-convert">Créer la fiche client</button>') +
+      '<button type="button" class="btn btn-line" id="ma-edit">Modifier</button>' +
+      '<button type="button" class="btn btn-line" id="ma-delete">Supprimer</button>';
 
     wrap.querySelectorAll('[data-action]').forEach(function(btn){
       var act = btn.getAttribute('data-action');
@@ -501,8 +521,88 @@ function openApptDetail(apptId){
       }).catch(function(){});
       closeModal();
     };
+    document.getElementById('ma-edit').onclick = function(){
+      openApptForm(a);
+    };
+    document.getElementById('ma-delete').onclick = function(){
+      if(!confirm('Supprimer définitivement ce rendez-vous ?')) return;
+      afterAction(api('DELETE', '/api/admin/appointments/' + apptId));
+      closeModal();
+    };
   }
   renderActions();
+}
+
+function openApptForm(existing){
+  var isEdit = !!existing;
+  var serviceOptions = ['Entretien / révision','Diagnostic panne','Pneumatiques','Pièces & accessoires','Multimédia / LED','Contre-visite','Autre'];
+  var selected = isEdit ? (existing.services || []) : [];
+
+  openModal(
+    '<h3>' + (isEdit ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous') + '</h3>' +
+    '<form id="apptForm">' +
+      '<div class="field-grid two" style="margin-bottom:16px;">' +
+        '<div class="field"><label>Nom<span class="req">*</span></label><input type="text" name="nom" required value="' + escapeHtml(existing && existing.nom || '') + '"></div>' +
+        '<div class="field"><label>Téléphone<span class="req">*</span></label><input type="tel" name="tel" required value="' + escapeHtml(existing && existing.tel || '') + '"></div>' +
+      '</div>' +
+      '<div class="field-grid two" style="margin-bottom:16px;">' +
+        '<div class="field"><label>E-mail</label><input type="email" name="email" value="' + escapeHtml(existing && existing.email || '') + '"></div>' +
+        '<div class="field"><label>Contact préféré</label><select name="contactpref">' +
+          ['Téléphone','E-mail','SMS'].map(function(o){ return '<option' + (existing && existing.contactpref === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') +
+        '</select></div>' +
+      '</div>' +
+      '<div class="field-grid two" style="margin-bottom:16px;">' +
+        '<div class="field"><label>Marque</label><input type="text" name="marque" value="' + escapeHtml(existing && existing.marque || '') + '"></div>' +
+        '<div class="field"><label>Modèle</label><input type="text" name="modele" value="' + escapeHtml(existing && existing.modele || '') + '"></div>' +
+      '</div>' +
+      '<div class="field-grid two" style="margin-bottom:16px;">' +
+        '<div class="field"><label>Année</label><input type="number" name="annee" min="1970" max="2026" value="' + escapeHtml(existing && existing.annee || '') + '"></div>' +
+        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1000" value="' + escapeHtml(existing && existing.km || '') + '"></div>' +
+      '</div>' +
+      '<div class="field" style="margin-bottom:16px;"><label>Immatriculation</label><input type="text" name="immat" value="' + escapeHtml(existing && existing.immat || '') + '"></div>' +
+      '<div class="field" style="margin-bottom:16px;">' +
+        '<label>Intervention(s)<span class="req">*</span></label>' +
+        '<div class="chip-group" id="apptServiceChips">' +
+          serviceOptions.map(function(s){
+            return '<label class="chip"><input type="checkbox" name="service" value="' + escapeHtml(s) + '"' + (selected.indexOf(s) !== -1 ? ' checked' : '') + '><span>' + escapeHtml(s) + '</span></label>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="field" style="margin-bottom:16px;"><label>Détails</label><textarea name="message">' + escapeHtml(existing && existing.message || '') + '</textarea></div>' +
+      '<div class="field-grid two" style="margin-bottom:20px;">' +
+        '<div class="field"><label>Date<span class="req">*</span></label><input type="date" name="date" required value="' + escapeHtml(existing && existing.date || '') + '"></div>' +
+        '<div class="field"><label>Créneau<span class="req">*</span></label><input type="text" name="creneau" required placeholder="Ex. 9h – 10h" value="' + escapeHtml(existing && existing.creneau || '') + '"></div>' +
+      '</div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
+        '<button type="submit" class="btn btn-fill">' + (isEdit ? 'Enregistrer' : 'Créer le rendez-vous') + '</button>' +
+      '</div>' +
+    '</form>'
+  );
+
+  var form = document.getElementById('apptForm');
+  form.querySelector('[data-close]').onclick = closeModal;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var services = Array.prototype.slice.call(form.querySelectorAll('input[name="service"]:checked')).map(function(i){ return i.value; });
+    if(services.length === 0){
+      document.getElementById('apptServiceChips').scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    if(!form.checkValidity()){ form.reportValidity(); return; }
+    var payload = {
+      nom: form.nom.value.trim(), tel: form.tel.value.trim(), email: form.email.value.trim(),
+      marque: form.marque.value.trim(), modele: form.modele.value.trim(), annee: form.annee.value.trim(),
+      km: form.km.value.trim(), immat: form.immat.value.trim(), services: services,
+      message: form.message.value.trim(), date: form.date.value, creneau: form.creneau.value.trim(),
+      contactpref: form.contactpref.value
+    };
+    var req = isEdit
+      ? api('PATCH', '/api/admin/appointments/' + existing.id + '/details', payload)
+      : api('POST', '/api/admin/appointments', payload);
+    afterAction(req);
+    closeModal();
+  });
 }
 
 /* ---------- render: dashboard ---------- */
@@ -587,7 +687,8 @@ function renderAgenda(){
         '<button type="button" class="btn btn-line btn-sm" data-action="cal-prev">← Précédent</button>' +
         '<div class="cal-month-label">' + escapeHtml(monthLabel) + '</div>' +
         '<button type="button" class="btn btn-line btn-sm" data-action="cal-next">Suivant →</button>' +
-        '<button type="button" class="btn btn-line btn-sm" data-action="cal-today" style="margin-left:auto;">Aujourd\'hui</button>' +
+        '<button type="button" class="btn btn-line btn-sm" data-action="cal-today">Aujourd\'hui</button>' +
+        '<button type="button" class="btn btn-fill btn-sm" data-action="new-appt" style="margin-left:auto;">+ Nouveau rendez-vous</button>' +
       '</div>' +
       '<div class="cal-legend">' +
         '<span class="cal-legend-item"><span class="dot cal-attente"></span>En attente</span>' +
@@ -623,8 +724,10 @@ function renderAppointments(){
   }).join('');
 
   return '' +
-    '<div class="admin-section-title">Demandes de rendez-vous</div>' +
-    '<div class="admin-section-sub">Envoyées depuis le formulaire du site.</div>' +
+    '<div class="admin-panel-head" style="margin-bottom:24px;">' +
+      '<div><div class="admin-section-title" style="margin-bottom:6px;">Demandes de rendez-vous</div><div class="admin-section-sub" style="margin-bottom:0;">Envoyées depuis le formulaire du site, ou ajoutées ici directement.</div></div>' +
+      '<button type="button" class="btn btn-fill" data-action="new-appt">+ Nouveau rendez-vous</button>' +
+    '</div>' +
     '<div class="admin-panel">' +
       (list.length
         ? '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Client</th><th>Véhicule</th><th>Créneau souhaité</th><th>Intervention(s)</th><th>Statut</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -689,7 +792,10 @@ function renderClientDetail(id){
           '<td class="muted">' + escapeHtml(v.km ? v.km + ' km' : '—') + '</td>' +
           '<td class="muted">' + escapeHtml(v.prochainCT ? fmtFr(v.prochainCT) : '—') + '</td>' +
           '<td class="muted">' + escapeHtml(v.derniereRevision ? fmtFr(v.derniereRevision) : '—') + '</td>' +
-          '<td><button type="button" class="btn btn-line" data-action="remove-vehicle" data-id="' + c.id + '" data-did="' + v.id + '">Retirer</button></td>' +
+          '<td><div class="row-actions">' +
+            '<button type="button" class="btn btn-line" data-action="edit-vehicle" data-id="' + c.id + '" data-did="' + v.id + '">Modifier</button>' +
+            '<button type="button" class="btn btn-line" data-action="remove-vehicle" data-id="' + c.id + '" data-did="' + v.id + '">Retirer</button>' +
+          '</div></td>' +
         '</tr>';
       }).join('') +
       '</tbody></table></div>'
@@ -744,6 +850,7 @@ function renderClientDetail(id){
             '<select data-change="set-' + kind + '-status" data-id="' + c.id + '" data-did="' + entry.id + '" style="width:auto; padding:7px 10px; font-size:0.7rem;">' +
               statutOptions.map(function(o){ return '<option value="' + o + '"' + (o === entry.statut ? ' selected' : '') + '>' + o + '</option>'; }).join('') +
             '</select>' +
+            '<button type="button" class="btn btn-line" data-action="edit-' + kind + '" data-id="' + c.id + '" data-did="' + entry.id + '">Modifier</button>' +
             '<button type="button" class="btn btn-line" data-action="delete-' + kind + '" data-id="' + c.id + '" data-did="' + entry.id + '">Suppr.</button>' +
           '</div></td>' +
         '</tr>';
@@ -909,6 +1016,8 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     renderAdmin();
   } else if(action === 'open-appt'){
     openApptDetail(parseInt(id, 10));
+  } else if(action === 'new-appt'){
+    openApptForm(null);
   } else if(action === 'open-client'){
     adminState.tab = 'client';
     adminState.clientId = parseInt(id, 10);
@@ -930,12 +1039,22 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     }
   } else if(action === 'add-vehicle'){
     openVehicleForm(id);
+  } else if(action === 'edit-vehicle'){
+    var c = findClient(id);
+    var veh = c && c.vehicules.find(function(v){ return v.id === parseInt(did, 10); });
+    if(veh) openVehicleForm(id, veh);
   } else if(action === 'remove-vehicle'){
     afterAction(api('DELETE', '/api/admin/vehicules/' + did));
   } else if(action === 'add-devis'){
     openDocForm(id, 'quote');
   } else if(action === 'add-facture'){
     openDocForm(id, 'invoice');
+  } else if(action === 'edit-quote' || action === 'edit-invoice'){
+    var kind = action === 'edit-quote' ? 'quote' : 'invoice';
+    var cl = findClient(id);
+    var list = kind === 'quote' ? (cl && cl.quotes) : (cl && cl.invoices);
+    var entry = list && list.find(function(x){ return x.id === parseInt(did, 10); });
+    if(entry) openDocForm(id, kind, entry);
   } else if(action === 'delete-quote'){
     if(confirm('Supprimer ce devis ?')) afterAction(api('DELETE', '/api/admin/quotes/' + did));
   } else if(action === 'delete-invoice'){

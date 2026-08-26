@@ -113,11 +113,64 @@ adminRouter.post('/status', (req, res) => {
   res.json({ ok: true });
 });
 
+adminRouter.post('/appointments', (req, res) => {
+  const b = req.body || {};
+  if (!str(b.nom).trim() || !str(b.tel).trim() || !str(b.date).trim() || !str(b.creneau).trim()) {
+    res.status(400).json({ error: 'missing_fields' });
+    return;
+  }
+  const services = toJsonArray(b.services);
+  if (services.length === 0) { res.status(400).json({ error: 'missing_services' }); return; }
+  const createdAt = new Date().toISOString();
+  const status = ['en_attente', 'confirme', 'annule'].includes(b.status) ? b.status : 'confirme';
+  const result = db.prepare(`
+    INSERT INTO appointments
+      (created_at, nom, tel, email, marque, modele, annee, km, immat, services, message, pret, date, creneau, flexible, contactpref, status, client_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  `).run(
+    createdAt, str(b.nom).trim(), str(b.tel).trim(), str(b.email).trim(),
+    str(b.marque).trim(), str(b.modele).trim(), str(b.annee).trim(), str(b.km).trim(), str(b.immat).trim(),
+    JSON.stringify(services), str(b.message).trim(), b.pret ? 1 : 0,
+    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(), status
+  );
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
 adminRouter.patch('/appointments/:id', (req, res) => {
   const id = Number(req.params.id);
   const status = req.body && req.body.status;
   if (!['en_attente', 'confirme', 'annule'].includes(status)) { res.status(400).json({ error: 'bad_status' }); return; }
   const info = db.prepare('UPDATE appointments SET status = ? WHERE id = ?').run(status, id);
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.patch('/appointments/:id/details', (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  if (!str(b.nom).trim() || !str(b.tel).trim() || !str(b.date).trim() || !str(b.creneau).trim()) {
+    res.status(400).json({ error: 'missing_fields' });
+    return;
+  }
+  const services = toJsonArray(b.services);
+  if (services.length === 0) { res.status(400).json({ error: 'missing_services' }); return; }
+  const info = db.prepare(`
+    UPDATE appointments SET
+      nom = ?, tel = ?, email = ?, marque = ?, modele = ?, annee = ?, km = ?, immat = ?,
+      services = ?, message = ?, pret = ?, date = ?, creneau = ?, flexible = ?, contactpref = ?
+    WHERE id = ?
+  `).run(
+    str(b.nom).trim(), str(b.tel).trim(), str(b.email).trim(),
+    str(b.marque).trim(), str(b.modele).trim(), str(b.annee).trim(), str(b.km).trim(), str(b.immat).trim(),
+    JSON.stringify(services), str(b.message).trim(), b.pret ? 1 : 0,
+    str(b.date).trim(), str(b.creneau).trim(), b.flexible ? 1 : 0, str(b.contactpref).trim(), id
+  );
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.delete('/appointments/:id', (req, res) => {
+  const info = db.prepare('DELETE FROM appointments WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
   res.json({ ok: true });
 });
@@ -199,6 +252,17 @@ adminRouter.post('/clients/:id/vehicules', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
+adminRouter.patch('/vehicules/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  if (!str(b.marque).trim()) { res.status(400).json({ error: 'missing_marque' }); return; }
+  const info = db.prepare(`
+    UPDATE vehicules SET marque=?, modele=?, annee=?, km=?, immat=?, carburant=?, vin=?, prochain_ct=?, derniere_revision=? WHERE id=?
+  `).run(str(b.marque).trim(), str(b.modele).trim(), str(b.annee).trim(), str(b.km).trim(), str(b.immat).trim(), str(b.carburant).trim(), str(b.vin).trim(), str(b.prochainCT).trim(), str(b.derniereRevision).trim(), id);
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
 adminRouter.delete('/vehicules/:id', (req, res) => {
   const info = db.prepare('DELETE FROM vehicules WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
@@ -221,26 +285,39 @@ function createDoc(table, req, res, defaultStatut) {
 adminRouter.post('/clients/:id/quotes', (req, res) => createDoc('quotes', req, res, 'envoyé'));
 adminRouter.post('/clients/:id/invoices', (req, res) => createDoc('invoices', req, res, 'impayée'));
 
-adminRouter.patch('/quotes/:id', (req, res) => {
-  const statut = req.body && req.body.statut;
-  if (!['envoyé', 'accepté', 'refusé'].includes(statut)) { res.status(400).json({ error: 'bad_statut' }); return; }
-  const info = db.prepare('UPDATE quotes SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
-  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+function updateDoc(table, statutOptions, req, res) {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  const existing = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+  if (!existing) { res.status(404).json({ error: 'not_found' }); return; }
+
+  const statut = b.statut !== undefined ? b.statut : existing.statut;
+  if (!statutOptions.includes(statut)) { res.status(400).json({ error: 'bad_statut' }); return; }
+
+  let items = existing.items;
+  let vehiculeId = existing.vehicule_id;
+  let date = existing.date;
+  if (b.items !== undefined) {
+    const newItems = toItemsArray(b.items);
+    if (newItems.length === 0) { res.status(400).json({ error: 'missing_items' }); return; }
+    items = JSON.stringify(newItems);
+    vehiculeId = b.vehiculeId ? Number(b.vehiculeId) : null;
+    date = str(b.date).trim() || existing.date;
+  }
+
+  db.prepare(`UPDATE ${table} SET statut = ?, items = ?, vehicule_id = ?, date = ? WHERE id = ?`)
+    .run(statut, items, vehiculeId, date, id);
   res.json({ ok: true });
-});
+}
+
+adminRouter.patch('/quotes/:id', (req, res) => updateDoc('quotes', ['envoyé', 'accepté', 'refusé'], req, res));
 adminRouter.delete('/quotes/:id', (req, res) => {
   const info = db.prepare('DELETE FROM quotes WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
   res.json({ ok: true });
 });
 
-adminRouter.patch('/invoices/:id', (req, res) => {
-  const statut = req.body && req.body.statut;
-  if (!['impayée', 'payée'].includes(statut)) { res.status(400).json({ error: 'bad_statut' }); return; }
-  const info = db.prepare('UPDATE invoices SET statut = ? WHERE id = ?').run(statut, Number(req.params.id));
-  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
-  res.json({ ok: true });
-});
+adminRouter.patch('/invoices/:id', (req, res) => updateDoc('invoices', ['impayée', 'payée'], req, res));
 adminRouter.delete('/invoices/:id', (req, res) => {
   const info = db.prepare('DELETE FROM invoices WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
