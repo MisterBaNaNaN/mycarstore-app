@@ -9,7 +9,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "seed": "node lib/seed.js"
+    "seed": "node lib/seed.js",
+    "reset-password": "node lib/reset-password.js",
+    "diag": "node lib/diag.js"
   },
   "dependencies": {
     "express": "^4.19.2"
