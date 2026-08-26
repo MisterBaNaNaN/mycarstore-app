@@ -281,7 +281,7 @@ if(rdvForm){
       return;
     }
 
-    formStatusEl.classList.remove('show');
+    formStatusEl.classList.remove('show', 'ok');
 
     var nom = rdvForm.nom.value.trim();
     var tel = rdvForm.tel.value.trim();
@@ -311,7 +311,11 @@ if(rdvForm){
       if(!r.ok) throw new Error('request_failed');
       return r.json();
     }).then(function(){
-      renderSummary();
+      rdvForm.reset();
+      refreshSlots();
+      formStatusEl.textContent = 'Merci ! Votre demande a bien été envoyée à l\'atelier — nous revenons vers vous rapidement.';
+      formStatusEl.classList.add('show', 'ok');
+      formStatusEl.scrollIntoView({behavior:'smooth', block:'center'});
     }).catch(function(){
       formStatusEl.textContent = "L'envoi a échoué — vérifiez votre connexion et réessayez, ou appelez directement l'atelier.";
       formStatusEl.classList.add('show');
@@ -319,97 +323,5 @@ if(rdvForm){
       submitBtn.disabled = false;
       submitBtn.textContent = originalLabel;
     });
-
-    function renderSummary(){
-      var dateObj = new Date(dateVal + 'T00:00:00');
-      var dateFmt = dateObj.toLocaleDateString('fr-FR', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
-      var vehicule = [marque, modele].filter(Boolean).join(' ');
-
-      var rows = [];
-      rows.push(['Nom', nom]);
-      rows.push(['Téléphone', tel]);
-      rows.push(['E-mail', email]);
-      rows.push(['Véhicule', vehicule || '—']);
-      if(annee) rows.push(['Année', annee]);
-      if(km) rows.push(['Kilométrage', km + ' km']);
-      if(immat) rows.push(['Immat.', immat]);
-      rows.push(['Intervention', services.join(', ')]);
-      if(message) rows.push(['Détails', message]);
-      rows.push(['Date souhaitée', dateFmt]);
-      rows.push(['Créneau', creneau]);
-      if(flexible) rows.push(['Flexible', 'Oui']);
-      if(pret) rows.push(['Véhicule de prêt', 'Souhaité']);
-      rows.push(['Contact préféré', contactpref]);
-
-      var refNum = 'RDV-' + Date.now().toString().slice(-6);
-      document.getElementById('summaryNum').textContent = refNum;
-      document.getElementById('summaryEmpty').style.display = 'none';
-      var list = document.getElementById('summaryList');
-      list.style.display = 'block';
-      list.innerHTML = rows.map(function(r){
-        return '<div class="ticket-row"><dt>' + escapeHtml(r[0]) + '</dt><dd>' + escapeHtml(r[1]) + '</dd></div>';
-      }).join('');
-
-      var fullLines = [
-        'Nouvelle demande de rendez-vous — MyCarStore (réf. ' + refNum + ')',
-        '', 'CLIENT',
-        'Nom : ' + nom, 'Téléphone : ' + tel, 'E-mail : ' + email,
-        '', 'VÉHICULE', 'Véhicule : ' + (vehicule || 'non précisé')
-      ];
-      if(annee) fullLines.push('Année : ' + annee);
-      if(km) fullLines.push('Kilométrage : ' + km + ' km');
-      if(immat) fullLines.push('Immatriculation : ' + immat);
-      fullLines.push('', 'DEMANDE', 'Intervention(s) : ' + services.join(', '));
-      if(message) fullLines.push('Détails : ' + message);
-      if(pret) fullLines.push('Véhicule de prêt souhaité (sous réserve de disponibilité)');
-      fullLines.push('', 'CRÉNEAU SOUHAITÉ', 'Date : ' + dateFmt, 'Heure : ' + creneau, 'Flexible : ' + (flexible ? 'oui' : 'non'));
-      fullLines.push('', 'Contact préféré : ' + contactpref);
-      var fullSummary = fullLines.join('\n');
-
-      var smsSummary = 'RDV MyCarStore - ' + nom + ' (' + tel + ') - ' +
-        (vehicule || 'véhicule non précisé') + ' - ' + services.join('/') +
-        ' - souhaité ' + dateFmt + ' ' + creneau + (message ? ' - Détails: ' + message : '');
-      if(smsSummary.length > 480) smsSummary = smsSummary.slice(0, 477) + '…';
-
-      var mailSubject = 'Demande de rendez-vous — ' + nom + ' (' + refNum + ')';
-      document.getElementById('btnMail').href =
-        'mailto:contact@mycarstore.fr?subject=' + encodeURIComponent(mailSubject) + '&body=' + encodeURIComponent(fullSummary);
-      document.getElementById('btnSms').href =
-        'sms:0640658409?&body=' + encodeURIComponent(smsSummary);
-
-      var creneauMatch = creneau.match(/(\d{1,2})h(\d{2})?\s*–\s*(\d{1,2})h(\d{2})?/);
-      if(creneauMatch){
-        var sH = parseInt(creneauMatch[1], 10), sM = creneauMatch[2] ? parseInt(creneauMatch[2], 10) : 0;
-        var eH = parseInt(creneauMatch[3], 10), eM = creneauMatch[4] ? parseInt(creneauMatch[4], 10) : 0;
-        var fmtDate = function(h, mi){
-          return '' + dateObj.getFullYear() + pad2(dateObj.getMonth() + 1) + pad2(dateObj.getDate()) + 'T' + pad2(h) + pad2(mi) + '00';
-        };
-        var calUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-          + '&text=' + encodeURIComponent('RDV MyCarStore' + (vehicule ? ' — ' + vehicule : ''))
-          + '&dates=' + fmtDate(sH, sM) + '/' + fmtDate(eH, eM)
-          + '&details=' + encodeURIComponent(fullSummary)
-          + '&location=' + encodeURIComponent('434 rue de la Basinière, ZAC des Tourelles, 90120 Morvillars')
-          + '&ctz=Europe/Paris';
-        document.getElementById('btnCal').href = calUrl;
-      }
-
-      document.getElementById('summaryActions').classList.add('show');
-
-      var copyBtn = document.getElementById('btnCopy');
-      copyBtn.onclick = function(){
-        var btn = this;
-        var restore = function(){ btn.textContent = 'Copier le récapitulatif'; btn.classList.remove('copied'); };
-        navigator.clipboard.writeText(fullSummary).then(function(){
-          btn.textContent = 'Copié ✓';
-          btn.classList.add('copied');
-          setTimeout(restore, 2000);
-        }).catch(function(){
-          btn.textContent = 'Copie impossible — sélectionnez le texte';
-          setTimeout(restore, 2500);
-        });
-      };
-
-      document.querySelector('.rdv-summary').scrollIntoView({behavior:'smooth', block:'start'});
-    }
   });
 }

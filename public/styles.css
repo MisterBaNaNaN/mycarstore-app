@@ -767,10 +767,7 @@ header.scrolled + .closure-banner .wrap{padding-top:1px;}
 
 /* ---------- rendez-vous ---------- */
 .rdv{background:var(--surface); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
-.rdv-grid{
-  display:grid; grid-template-columns:1.35fr 0.9fr; gap:48px; align-items:start;
-}
-@media (max-width:900px){ .rdv-grid{grid-template-columns:1fr;} }
+.rdv-single{max-width:720px; margin:0 auto;}
 
 .form-card{
   background:var(--ink); border:1px solid var(--line); border-radius:3px;
@@ -847,21 +844,6 @@ select{
 .form-status.show{display:block;}
 .form-status.ok{color:var(--lime);}
 
-.rdv-summary{position:sticky; top:104px;}
-@media (max-width:900px){ .rdv-summary{position:static;} }
-.summary-ticket .ticket-empty{
-  font-family:var(--font-mono); font-size:0.82rem; color:var(--steel-2); line-height:1.7;
-  padding:6px 0 4px;
-}
-.summary-ticket .ticket-row dd{max-width:60%;}
-.summary-actions{display:none; flex-direction:column; gap:10px; margin-top:20px;}
-.summary-actions.show{display:flex;}
-.summary-actions .btn{justify-content:center;}
-.summary-note{
-  font-family:var(--font-mono); font-size:0.7rem; color:var(--steel-2);
-  line-height:1.6; margin-top:14px;
-}
-.copy-btn.copied{border-color:var(--lime); color:var(--lime);}
 
 /* ---------- contact cta ---------- */
 .cta-band{

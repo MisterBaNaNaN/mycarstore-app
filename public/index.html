@@ -179,45 +179,6 @@
     </div>
   </section>
 
-  <section class="testimonials" id="avis">
-    <div class="wrap">
-      <div class="section-head">
-        <h2>Ce que disent nos clients</h2>
-        <p>Des avis authentiques laissés par les clients de l'atelier.</p>
-      </div>
-      <div class="testi-grid" id="testiGrid" hidden></div>
-
-      <div class="testi-form-wrap">
-        <h3>Laisser un avis</h3>
-        <p class="hint" style="margin-bottom:20px;">Votre avis sera publié après vérification par l'atelier.</p>
-        <form class="form-card" id="testiForm" novalidate>
-          <div class="field-grid">
-            <div class="field">
-              <label for="tf-nom">Votre nom<span class="req">*</span></label>
-              <input type="text" id="tf-nom" name="nom" required placeholder="Ex. Camille Dubois">
-            </div>
-            <div class="field">
-              <label for="tf-note">Note<span class="req">*</span></label>
-              <select id="tf-note" name="note" required>
-                <option value="5">★★★★★ — Excellent</option>
-                <option value="4">★★★★☆ — Très bien</option>
-                <option value="3">★★★☆☆ — Correct</option>
-                <option value="2">★★☆☆☆ — Décevant</option>
-                <option value="1">★☆☆☆☆ — Insatisfait</option>
-              </select>
-            </div>
-            <div class="field full">
-              <label for="tf-texte">Votre avis<span class="req">*</span></label>
-              <textarea id="tf-texte" name="texte" required placeholder="Partagez votre expérience chez MyCarStore…"></textarea>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-fill form-submit">Envoyer mon avis</button>
-          <p class="form-status" id="testiFormStatus"></p>
-        </form>
-      </div>
-    </div>
-  </section>
-
   <section class="location" id="horaires">
     <div class="wrap">
       <div class="section-head">
@@ -269,7 +230,7 @@
         <p>Remplissez la fiche ci-dessous : elle sera transmise directement à l'atelier, et vous pourrez aussi l'envoyer par e-mail ou SMS.</p>
       </div>
 
-      <div class="rdv-grid">
+      <div class="rdv-single">
         <form class="form-card" id="rdvForm" novalidate>
 
           <fieldset class="fset">
@@ -384,30 +345,45 @@
           <button type="submit" class="btn btn-fill form-submit">Envoyer ma demande de rendez-vous</button>
           <p class="form-status" id="formStatus">Merci de vérifier les champs marqués d'un astérisque.</p>
         </form>
+      </div>
+    </div>
+  </section>
 
-        <div class="rdv-summary">
-          <div class="ticket summary-ticket">
-            <div class="ticket-head">
-              <span class="tag">Aperçu de la demande</span>
-              <span class="num" id="summaryNum">—</span>
-            </div>
-            <div id="summaryEmpty" class="ticket-empty">
-              Remplissez le formulaire : votre demande sera envoyée directement à l'atelier.
-            </div>
-            <dl id="summaryList" style="margin:0; display:none;"></dl>
+  <section class="testimonials" id="avis">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Ce que disent nos clients</h2>
+        <p>Des avis authentiques laissés par les clients de l'atelier.</p>
+      </div>
+      <div class="testi-grid" id="testiGrid" hidden></div>
 
-            <div class="summary-actions" id="summaryActions">
-              <div class="hint" style="margin-bottom:4px; color:var(--lime);" id="summarySentNote">✓ Demande envoyée à l'atelier.</div>
-              <a class="btn btn-line" id="btnMail" href="#">Envoyer aussi par e-mail</a>
-              <a class="btn btn-line" id="btnSms" href="#">Envoyer aussi par SMS</a>
-              <a class="btn btn-line" id="btnCal" href="#" target="_blank" rel="noopener">Ajouter au calendrier</a>
-              <button type="button" class="btn btn-line copy-btn" id="btnCopy">Copier le récapitulatif</button>
+      <div class="testi-form-wrap">
+        <h3>Laisser un avis</h3>
+        <p class="hint" style="margin-bottom:20px;">Votre avis sera publié après vérification par l'atelier.</p>
+        <form class="form-card" id="testiForm" novalidate>
+          <div class="field-grid">
+            <div class="field">
+              <label for="tf-nom">Votre nom<span class="req">*</span></label>
+              <input type="text" id="tf-nom" name="nom" required placeholder="Ex. Camille Dubois">
             </div>
-            <p class="summary-note">
-              Votre demande est envoyée directement à l'atelier. Les boutons e-mail/SMS ouvrent votre messagerie ou votre application SMS si vous voulez aussi prévenir directement — ça ne remplace pas l'envoi automatique, c'est juste en plus.
-            </p>
+            <div class="field">
+              <label for="tf-note">Note<span class="req">*</span></label>
+              <select id="tf-note" name="note" required>
+                <option value="5">★★★★★ — Excellent</option>
+                <option value="4">★★★★☆ — Très bien</option>
+                <option value="3">★★★☆☆ — Correct</option>
+                <option value="2">★★☆☆☆ — Décevant</option>
+                <option value="1">★☆☆☆☆ — Insatisfait</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="tf-texte">Votre avis<span class="req">*</span></label>
+              <textarea id="tf-texte" name="texte" required placeholder="Partagez votre expérience chez MyCarStore…"></textarea>
+            </div>
           </div>
-        </div>
+          <button type="submit" class="btn btn-fill form-submit">Envoyer mon avis</button>
+          <p class="form-status" id="testiFormStatus"></p>
+        </form>
       </div>
     </div>
   </section>
