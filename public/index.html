@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyCarStore — Garage multimarques à Morvillars</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header id="siteHeader">
+  <div class="wrap bar">
+    <a href="#top" class="logo"><span class="m">MY</span>CARSTORE</a>
+    <nav class="primary" id="primaryNav">
+      <a href="#services">Services</a>
+      <a href="#atelier">L'atelier</a>
+      <a href="#horaires">Horaires &amp; accès</a>
+      <a href="#rdv">Rendez-vous</a>
+      <a class="btn btn-fill btn-sm" href="#rdv" style="margin-top:8px;">Prendre rendez-vous</a>
+    </nav>
+    <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusPillText">—</span></span>
+    <a class="btn btn-fill btn-sm cta-desktop" href="tel:0365676962">03 65 67 69 62</a>
+    <button class="navtoggle" id="navToggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="primaryNav">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="closure-banner" id="closureBanner" hidden>
+  <div class="wrap"><span id="closureBannerText"></span></div>
+</div>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="scanline" aria-hidden="true"></div>
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Garage multimarques — Morvillars, 90120</p>
+        <h1>Votre voiture mérite <em>un diagnostic précis.</em></h1>
+        <p class="lede">Mécanique, pièces &amp; accessoires, installation multimédia et LED : à Morvillars, un seul atelier prend en charge toutes les marques et toutes les générations de véhicules.</p>
+        <div class="actions">
+          <a class="btn btn-fill" href="#rdv">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+            Prendre rendez-vous
+          </a>
+          <a class="btn btn-line" href="tel:0365676962">Appeler le 03 65 67 69 62</a>
+        </div>
+        <div class="quickinfo">
+          <div><span>Multimarques</span><strong>Toutes générations</strong></div>
+          <div><span>Statut</span><strong id="heroStatusText">—</strong></div>
+          <div><span>Sur place</span><strong>Pièces &amp; LED</strong></div>
+        </div>
+      </div>
+
+      <div class="ticket">
+        <div class="ticket-head">
+          <span class="tag">Fiche atelier</span>
+          <span class="num">MYCS · 90120</span>
+        </div>
+        <dl style="margin:0;">
+          <div class="ticket-row">
+            <dt>Adresse</dt>
+            <dd>434 rue de la Basinière<br>ZAC des Tourelles</dd>
+          </div>
+          <div class="ticket-row">
+            <dt>Commune</dt>
+            <dd>90120 Morvillars</dd>
+          </div>
+          <div class="ticket-row">
+            <dt>Téléphone</dt>
+            <dd><a href="tel:0365676962">03 65 67 69 62</a></dd>
+          </div>
+          <div class="ticket-row">
+            <dt>E-mail</dt>
+            <dd><a href="mailto:contact@mycarstore.fr">contact@mycarstore.fr</a></dd>
+          </div>
+          <div class="ticket-row">
+            <dt>Lun–Ven</dt>
+            <dd>9h – 18h30</dd>
+          </div>
+          <div class="ticket-row">
+            <dt>Samedi</dt>
+            <dd>9h – 14h</dd>
+          </div>
+        </dl>
+        <div class="ticket-status"><span class="dot"></span> Devis établi avant intervention</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hazard" role="presentation"></div>
+
+  <section id="services">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Nos interventions</h2>
+        <p>Trois expertises réunies dans le même atelier, pour éviter les allers-retours entre plusieurs garages.</p>
+      </div>
+
+      <div class="services-grid">
+        <article class="service">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <div class="tag">Atelier — Mécanique</div>
+          <h3>Mécanique multimarques</h3>
+          <p>Entretien courant, diagnostic électronique et réparation mécanique, quelle que soit la marque ou la génération du véhicule.</p>
+        </article>
+
+        <article class="service">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 7h-3V6a4 4 0 0 0-8 0v1H6a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1zM11 6a1 1 0 0 1 2 0v1h-2V6z"/></svg>
+          </div>
+          <div class="tag">Boutique — Équipement</div>
+          <h3>Pièces &amp; accessoires</h3>
+          <p>Vente et installation de pièces et d'accessoires auto, sélectionnés pour leur fiabilité et posés sur place.</p>
+        </article>
+
+        <article class="service">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.05V17h6v-2.25c0-.85.4-1.55 1-2.05A7 7 0 0 0 12 2z"/></svg>
+          </div>
+          <div class="tag">Technique — Multimédia</div>
+          <h3>Multimédia &amp; technologie LED</h3>
+          <p>Installation d'équipements multimédia et d'éclairage LED, réglés pour rester conformes et lisibles sur la route.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="process">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Comment ça se passe</h2>
+        <p>De la prise de contact à la restitution du véhicule, le même atelier suit votre dossier du début à la fin.</p>
+      </div>
+      <div class="process-grid">
+        <div class="process-step">
+          <div class="index">01 · Contact</div>
+          <h3>Prise de rendez-vous</h3>
+          <p>Par téléphone ou via le formulaire en ligne : vous décrivez le véhicule et le besoin, on cale un créneau.</p>
+        </div>
+        <div class="process-step">
+          <div class="index">02 · Atelier</div>
+          <h3>Diagnostic &amp; devis</h3>
+          <p>Le véhicule est examiné et un devis est établi avant toute intervention, pour valider ensemble ce qui est fait.</p>
+        </div>
+        <div class="process-step">
+          <div class="index">03 · Restitution</div>
+          <h3>Intervention &amp; remise des clés</h3>
+          <p>Une fois le devis validé, l'intervention est réalisée puis le véhicule vous est restitué à l'atelier.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="atelier">
+    <div class="wrap">
+      <div class="feature">
+        <div class="k">Approche</div>
+        <div class="v">Diagnostic avant devis</div>
+      </div>
+      <div class="feature">
+        <div class="k">Couverture</div>
+        <div class="v">Toutes marques</div>
+      </div>
+      <div class="feature">
+        <div class="k">Sur place</div>
+        <div class="v">Pièces &amp; pose LED</div>
+      </div>
+      <div class="feature">
+        <div class="k">Accès</div>
+        <div class="v">ZAC des Tourelles</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="location" id="horaires">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Horaires &amp; accès</h2>
+        <p>L'atelier se trouve dans la ZAC des Tourelles, à l'entrée de Morvillars.</p>
+      </div>
+
+      <div class="loc-grid">
+        <div>
+          <table class="hours-table">
+            <tbody>
+              <tr class="today" id="row-lun"><td>Lundi</td><td>9h – 18h30</td></tr>
+              <tr id="row-mar"><td>Mardi</td><td>9h – 18h30</td></tr>
+              <tr id="row-mer"><td>Mercredi</td><td>9h – 18h30</td></tr>
+              <tr id="row-jeu"><td>Jeudi</td><td>9h – 18h30</td></tr>
+              <tr id="row-ven"><td>Vendredi</td><td>9h – 18h30</td></tr>
+              <tr id="row-sam"><td>Samedi</td><td>9h – 14h</td></tr>
+              <tr class="closed" id="row-dim"><td>Dimanche</td><td>Fermé</td></tr>
+            </tbody>
+          </table>
+
+          <div class="addr-block">
+            <address>434 rue de la Basinière<br>ZAC des Tourelles<br>90120 Morvillars</address>
+            <div class="actions">
+              <a class="btn btn-fill" href="https://www.google.com/maps/search/?api=1&query=434+rue+de+la+Basini%C3%A8re+ZAC+des+Tourelles+90120+Morvillars" target="_blank" rel="noopener">Itinéraire Maps</a>
+              <a class="btn btn-line" href="https://waze.com/ul?q=434%20rue%20de%20la%20Basini%C3%A8re%2090120%20Morvillars" target="_blank" rel="noopener">Ouvrir Waze</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="mapcard">
+          <div class="pin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div class="caption">
+            <b>ZAC des Tourelles</b>
+            90120 Morvillars — Territoire de Belfort.<br>
+            Accès facile depuis Belfort, Delle et Grandvillars.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="rdv" id="rdv">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Prendre rendez-vous</h2>
+        <p>Remplissez la fiche ci-dessous : elle sera transmise directement à l'atelier, et vous pourrez aussi l'envoyer par e-mail ou SMS.</p>
+      </div>
+
+      <div class="rdv-grid">
+        <form class="form-card" id="rdvForm" novalidate>
+
+          <fieldset class="fset">
+            <legend>Vos coordonnées</legend>
+            <div class="field-grid">
+              <div class="field full">
+                <label for="f-nom">Nom et prénom<span class="req">*</span></label>
+                <input type="text" id="f-nom" name="nom" autocomplete="name" required placeholder="Ex. Camille Dubois">
+              </div>
+              <div class="field">
+                <label for="f-tel">Téléphone<span class="req">*</span></label>
+                <input type="tel" id="f-tel" name="tel" autocomplete="tel" required
+                  pattern="^0[1-9](\s?\d{2}){4}$" placeholder="06 40 65 84 09">
+              </div>
+              <div class="field">
+                <label for="f-email">E-mail<span class="req">*</span></label>
+                <input type="email" id="f-email" name="email" autocomplete="email" required placeholder="vous@exemple.fr">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fset">
+            <legend>Votre véhicule</legend>
+            <div class="field-grid">
+              <div class="field">
+                <label for="f-marque">Marque<span class="req">*</span></label>
+                <input type="text" id="f-marque" name="marque" required placeholder="Ex. Peugeot">
+              </div>
+              <div class="field">
+                <label for="f-modele">Modèle</label>
+                <input type="text" id="f-modele" name="modele" placeholder="Ex. 208">
+              </div>
+              <div class="field">
+                <label for="f-annee">Année</label>
+                <input type="number" id="f-annee" name="annee" min="1970" max="2026" placeholder="2019">
+              </div>
+              <div class="field">
+                <label for="f-km">Kilométrage</label>
+                <input type="number" id="f-km" name="km" min="0" step="1000" placeholder="85000">
+              </div>
+              <div class="field full">
+                <label for="f-immat">Immatriculation <span style="text-transform:none; letter-spacing:0;">(optionnel)</span></label>
+                <input type="text" id="f-immat" name="immat" placeholder="AA-123-AA">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fset">
+            <legend>Votre demande</legend>
+            <div class="field full" style="margin-bottom:20px;">
+              <label>Type(s) d'intervention<span class="req">*</span></label>
+              <div class="chip-group" id="serviceChips">
+                <label class="chip"><input type="checkbox" name="service" value="Entretien / révision"><span>Entretien / révision</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Diagnostic panne"><span>Diagnostic panne</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Pneumatiques"><span>Pneumatiques</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Pièces &amp; accessoires"><span>Pièces &amp; accessoires</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Multimédia / LED"><span>Multimédia / LED</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Contre-visite"><span>Contre-visite</span></label>
+                <label class="chip"><input type="checkbox" name="service" value="Autre"><span>Autre</span></label>
+              </div>
+            </div>
+            <div class="field full" style="margin-bottom:20px;">
+              <label for="f-message">Détails de la demande</label>
+              <textarea id="f-message" name="message" placeholder="Décrivez le symptôme, le bruit, la panne ou le besoin…"></textarea>
+            </div>
+            <div class="field full">
+              <label>Véhicule de prêt</label>
+              <div class="chip-group">
+                <label class="chip"><input type="checkbox" name="pret" value="oui"><span>Je souhaite un véhicule de prêt (sous réserve de disponibilité)</span></label>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fset">
+            <legend>Créneau souhaité</legend>
+            <div class="field-grid">
+              <div class="field">
+                <label for="f-date">Date<span class="req">*</span></label>
+                <input type="date" id="f-date" name="date" required>
+              </div>
+              <div class="field">
+                <label for="f-creneau">Heure<span class="req">*</span></label>
+                <select id="f-creneau" name="creneau" required>
+                  <option value="" disabled selected>Choisir une date d'abord</option>
+                </select>
+              </div>
+              <div class="field full">
+                <p class="hint" id="dateHint">Lun–ven 9h–18h30 · sam 9h–14h · fermé le dimanche.</p>
+              </div>
+              <div class="field full">
+                <div class="chip-group">
+                  <label class="chip"><input type="checkbox" name="flexible" value="oui"><span>Je suis flexible sur la date</span></label>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fset">
+            <legend>Comment vous recontacter ?</legend>
+            <div class="chip-group">
+              <label class="chip"><input type="radio" name="contactpref" value="Téléphone" checked><span>Téléphone</span></label>
+              <label class="chip"><input type="radio" name="contactpref" value="E-mail"><span>E-mail</span></label>
+              <label class="chip"><input type="radio" name="contactpref" value="SMS"><span>SMS</span></label>
+            </div>
+          </fieldset>
+
+          <label class="consent">
+            <input type="checkbox" name="consent" required>
+            <span>J'accepte d'être recontacté(e) par MyCarStore au sujet de cette demande de rendez-vous.<span class="req">*</span></span>
+          </label>
+
+          <button type="submit" class="btn btn-fill form-submit">Envoyer ma demande de rendez-vous</button>
+          <p class="form-status" id="formStatus">Merci de vérifier les champs marqués d'un astérisque.</p>
+        </form>
+
+        <div class="rdv-summary">
+          <div class="ticket summary-ticket">
+            <div class="ticket-head">
+              <span class="tag">Aperçu de la demande</span>
+              <span class="num" id="summaryNum">—</span>
+            </div>
+            <div id="summaryEmpty" class="ticket-empty">
+              Remplissez le formulaire : votre demande sera envoyée directement à l'atelier.
+            </div>
+            <dl id="summaryList" style="margin:0; display:none;"></dl>
+
+            <div class="summary-actions" id="summaryActions">
+              <div class="hint" style="margin-bottom:4px; color:var(--lime);" id="summarySentNote">✓ Demande envoyée à l'atelier.</div>
+              <a class="btn btn-line" id="btnMail" href="#">Envoyer aussi par e-mail</a>
+              <a class="btn btn-line" id="btnSms" href="#">Envoyer aussi par SMS</a>
+              <a class="btn btn-line" id="btnCal" href="#" target="_blank" rel="noopener">Ajouter au calendrier</a>
+              <button type="button" class="btn btn-line copy-btn" id="btnCopy">Copier le récapitulatif</button>
+            </div>
+            <p class="summary-note">
+              Votre demande est envoyée directement à l'atelier. Les boutons e-mail/SMS ouvrent votre messagerie ou votre application SMS si vous voulez aussi prévenir directement — ça ne remplace pas l'envoi automatique, c'est juste en plus.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq" id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Questions fréquentes</h2>
+        <p>Ce qu'on nous demande le plus souvent avant un rendez-vous.</p>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>Travaillez-vous sur toutes les marques ?<span class="plus">+</span></summary>
+          <p>Oui, l'atelier est multimarques : entretien, diagnostic et réparation, quels que soient la marque et l'âge du véhicule.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Dois-je laisser mon véhicule sur place ?<span class="plus">+</span></summary>
+          <p>Cela dépend de l'intervention. Le sujet est vu ensemble lors de la prise de rendez-vous, en fonction du diagnostic à réaliser.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Le devis est-il payant ?<span class="plus">+</span></summary>
+          <p>Un devis est systématiquement établi après diagnostic, avant toute intervention, pour valider ensemble ce qui est pris en charge.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Proposez-vous un véhicule de prêt ?<span class="plus">+</span></summary>
+          <p>Sous réserve de disponibilité. Cochez la case correspondante dans le formulaire de rendez-vous pour en faire la demande.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Puis-je modifier ou annuler mon rendez-vous ?<span class="plus">+</span></summary>
+          <p>Oui, contactez directement l'atelier par téléphone dès que possible pour ajuster le créneau.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Faites-vous la contre-visite après un contrôle technique ?<span class="plus">+</span></summary>
+          <p>Oui, la contre-visite fait partie des interventions proposées : sélectionnez-la dans le formulaire de rendez-vous.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-band" id="contact">
+    <div class="wrap">
+      <h2>Vous préférez appeler directement ?</h2>
+      <div class="side">
+        <a class="btn btn-fill" href="tel:0365676962">Appeler l'atelier</a>
+        <a class="phone" href="mailto:contact@mycarstore.fr">contact@mycarstore.fr</a>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="mobilebar">
+  <a class="btn btn-line" href="tel:0365676962">Appeler</a>
+  <a class="btn btn-fill" href="#rdv">Rendez-vous</a>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <a href="#top" class="logo"><span class="m">MY</span>CARSTORE</a>
+      <div class="addr">
+        434 rue de la Basinière, ZAC des Tourelles — 90120 Morvillars<br>
+        03 65 67 69 62 — contact@mycarstore.fr
+      </div>
+    </div>
+    <div class="meta">
+      © <span id="year"></span> SAS MYCARSTORE SERVICES
+    </div>
+  </div>
+</footer>
+
+<script src="/site.js"></script>
+</body>
+</html>

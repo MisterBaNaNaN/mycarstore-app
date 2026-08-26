@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — MyCarStore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<div class="admin-gate" id="loginGate">
+  <div class="login-card">
+    <a href="/" class="logo"><span class="m">MY</span>CARSTORE</a>
+    <p>Espace atelier — connectez-vous pour accéder à l'agenda, aux demandes de rendez-vous et aux fiches clients.</p>
+    <p class="login-error" id="loginError"></p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="li-user">Identifiant</label>
+        <input type="text" id="li-user" name="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="li-pass">Mot de passe</label>
+        <input type="password" id="li-pass" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-fill" style="width:100%; justify-content:center;">Se connecter</button>
+    </form>
+  </div>
+</div>
+
+<div id="adminApp" hidden></div>
+
+<script src="/admin.js"></script>
+</body>
+</html>

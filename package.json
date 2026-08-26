@@ -1,0 +1,17 @@
+{
+  "name": "mycarstore-app",
+  "version": "1.0.0",
+  "description": "Site vitrine + admin pour le garage MyCarStore (Morvillars)",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node lib/seed.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
