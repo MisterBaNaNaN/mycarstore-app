@@ -53,6 +53,10 @@ app.get('/api/taken-slots', (req, res) => {
   res.json({ date, taken: state.getTakenSlots(date) });
 });
 
+app.get('/api/testimonials', (req, res) => {
+  res.json(state.getTestimonials().filter((t) => t.published));
+});
+
 app.post('/api/appointments', (req, res) => {
   const b = req.body || {};
   if (!str(b.nom).trim() || !str(b.tel).trim() || !str(b.email).trim() || !str(b.date).trim() || !str(b.creneau).trim()) {
@@ -366,6 +370,62 @@ adminRouter.patch('/invoices/:id', (req, res) => updateDoc('invoices', ['impayé
 adminRouter.delete('/invoices/:id', (req, res) => {
   const info = db.prepare('DELETE FROM invoices WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.post('/testimonials', (req, res) => {
+  const b = req.body || {};
+  if (!str(b.nom).trim() || !str(b.texte).trim()) { res.status(400).json({ error: 'missing_fields' }); return; }
+  let note = Number(b.note);
+  if (!(note >= 1 && note <= 5)) note = 5;
+  const createdAt = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO testimonials (created_at, nom, note, texte, published) VALUES (?, ?, ?, ?, ?)
+  `).run(createdAt, str(b.nom).trim(), Math.round(note), str(b.texte).trim(), b.published === false ? 0 : 1);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
+adminRouter.patch('/testimonials/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const b = req.body || {};
+  if (!str(b.nom).trim() || !str(b.texte).trim()) { res.status(400).json({ error: 'missing_fields' }); return; }
+  let note = Number(b.note);
+  if (!(note >= 1 && note <= 5)) note = 5;
+  const info = db.prepare(`
+    UPDATE testimonials SET nom = ?, note = ?, texte = ?, published = ? WHERE id = ?
+  `).run(str(b.nom).trim(), Math.round(note), str(b.texte).trim(), b.published ? 1 : 0, id);
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.delete('/testimonials/:id', (req, res) => {
+  const info = db.prepare('DELETE FROM testimonials WHERE id = ?').run(Number(req.params.id));
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.post('/users', (req, res) => {
+  const { username, password } = req.body || {};
+  const uname = str(username).trim();
+  if (!uname || !password || String(password).length < 8) { res.status(400).json({ error: 'invalid_input' }); return; }
+  const exists = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(uname);
+  if (exists) { res.status(409).json({ error: 'username_taken' }); return; }
+  const { hash, salt } = auth.hashPassword(password);
+  const createdAt = new Date().toISOString();
+  const result = db.prepare(`
+    INSERT INTO admin_users (username, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?)
+  `).run(uname, hash, salt, createdAt);
+  res.status(201).json({ id: result.lastInsertRowid, username: uname });
+});
+
+adminRouter.delete('/users/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const count = db.prepare('SELECT COUNT(*) n FROM admin_users').get().n;
+  if (count <= 1) { res.status(400).json({ error: 'last_admin' }); return; }
+  if (id === req.user.id) { res.status(400).json({ error: 'cannot_delete_self' }); return; }
+  const info = db.prepare('DELETE FROM admin_users WHERE id = ?').run(id);
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
   res.json({ ok: true });
 });
 

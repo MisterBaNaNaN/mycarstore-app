@@ -58,7 +58,8 @@ function apptStatusActions(a){
 }
 
 /* ---------- API + state ---------- */
-var STATE = {status:{mode:'open'}, appointments:[], clients:[]};
+var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[]};
+var CURRENT_USERNAME = null;
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
 var REPORTS = null;
 
@@ -160,7 +161,8 @@ document.getElementById('loginForm').addEventListener('submit', function(e){
   }).then(function(r){
     if(!r.ok) throw new Error('bad_login');
     return r.json();
-  }).then(function(){
+  }).then(function(data){
+    CURRENT_USERNAME = data.username;
     form.reset();
     startAdmin();
   }).catch(function(){
@@ -170,7 +172,11 @@ document.getElementById('loginForm').addEventListener('submit', function(e){
 });
 
 fetch('/api/me', {credentials:'include'}).then(function(r){
-  if(r.ok) startAdmin(); else showLoginGate();
+  if(!r.ok){ showLoginGate(); return; }
+  r.json().then(function(data){
+    CURRENT_USERNAME = data.username;
+    startAdmin();
+  });
 });
 
 /* ---------- modal helpers ---------- */
@@ -727,6 +733,24 @@ function openApptForm(existing){
 }
 
 /* ---------- render: dashboard ---------- */
+function alertRows(alerts){
+  if(!alerts.length) return '<div class="admin-empty">Aucune échéance CT ou révision à venir.</div>';
+  var typeLabel = {ct:'Contrôle technique', revision:'Révision'};
+  return '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Client</th><th>Véhicule</th><th>Type</th><th>Échéance</th><th></th></tr></thead><tbody>' +
+    alerts.map(function(a){
+      return '<tr>' +
+        '<td>' + escapeHtml(a.clientNom) + '</td>' +
+        '<td class="muted">' + escapeHtml(a.vehicule) + '</td>' +
+        '<td>' + escapeHtml(typeLabel[a.type] || a.type) + '</td>' +
+        '<td><span class="chip-status ' + (a.urgency === 'overdue' ? 'tone-overdue' : 'tone-soon') + '"><span class="dot"></span>' +
+          (a.urgency === 'overdue' ? 'Dépassé — ' : 'Prévu ') + escapeHtml(fmtFr(a.dueDate)) +
+        '</span></td>' +
+        '<td><button type="button" class="btn btn-line" data-action="open-client" data-id="' + a.clientId + '">Voir la fiche</button></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
 function renderDashboard(){
   var newCount = STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length;
   var totalUnpaid = 0;
@@ -734,6 +758,7 @@ function renderDashboard(){
     c.invoices.forEach(function(inv){ if(inv.statut === 'impayée') totalUnpaid += docTotal(inv); });
   });
   var st = STATE.status || {mode:'open'};
+  var alerts = STATE.alerts || [];
 
   var statusCards =
     '<div class="status-opt' + (st.mode === 'open' ? ' current' : '') + '" data-action="set-status-open">' +
@@ -757,6 +782,10 @@ function renderDashboard(){
     '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Statut de l\'atelier</h3></div>' +
       '<div class="status-options">' + statusCards + '</div>' +
+    '</div>' +
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Alertes CT / Révision' + (alerts.length ? ' · ' + alerts.length : '') + '</h3></div>' +
+      alertRows(alerts) +
     '</div>';
 }
 
@@ -929,6 +958,13 @@ function renderClientDetail(id){
       '</tbody></table></div>'
     : '<div class="admin-empty">Aucun véhicule enregistré.</div>';
 
+  var FIDELITY_THRESHOLD = 5;
+  var paidCount = c.invoices.filter(function(i){ return i.statut === 'payée'; }).length;
+  var fidelityMod = paidCount % FIDELITY_THRESHOLD;
+  var fidelityReady = paidCount > 0 && fidelityMod === 0;
+  var fidelityRemaining = fidelityReady ? 0 : FIDELITY_THRESHOLD - fidelityMod;
+  var fidelityPct = fidelityReady ? 100 : Math.round((fidelityMod / FIDELITY_THRESHOLD) * 100);
+
   var linkedAppts = STATE.appointments.filter(function(a){ return a.clientId === c.id; });
   var possibleAppts = STATE.appointments.filter(function(a){
     if(a.clientId) return false;
@@ -937,6 +973,31 @@ function renderClientDetail(id){
     var nomMatch = c.nom && a.nom && c.nom.trim().toLowerCase() === a.nom.trim().toLowerCase();
     return telMatch || emailMatch || nomMatch;
   });
+
+  var timelineEvents = [];
+  linkedAppts.forEach(function(a){
+    timelineEvents.push({date: a.date, label: 'RDV — ' + (a.services || []).join(', '), sub: a.creneau, statusHtml: apptStatusChip(a.status)});
+  });
+  c.quotes.forEach(function(q){
+    var toneQ = q.statut === 'accepté' ? 'tone-accepted' : q.statut === 'refusé' ? 'tone-declined' : 'tone-sent';
+    timelineEvents.push({date: q.date, label: 'Devis — ' + q.items.map(function(it){ return it.label; }).join(', '), sub: eur(docTotal(q)), statusHtml: '<span class="chip-status ' + toneQ + '"><span class="dot"></span>' + escapeHtml(q.statut) + '</span>'});
+  });
+  c.invoices.forEach(function(inv){
+    var toneI = inv.statut === 'payée' ? 'tone-paid' : 'tone-unpaid';
+    timelineEvents.push({date: inv.date, label: 'Facture — ' + inv.items.map(function(it){ return it.label; }).join(', '), sub: eur(docTotal(inv)), statusHtml: '<span class="chip-status ' + toneI + '"><span class="dot"></span>' + escapeHtml(inv.statut) + '</span>'});
+  });
+  timelineEvents.sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); });
+  var timelineHtml = timelineEvents.length
+    ? '<div class="timeline">' + timelineEvents.map(function(ev){
+        return '<div class="timeline-item">' +
+          '<div class="timeline-dot"></div>' +
+          '<div class="timeline-body">' +
+            '<div class="timeline-head"><span class="timeline-date">' + escapeHtml(fmtFr(ev.date)) + '</span>' + ev.statusHtml + '</div>' +
+            '<div class="timeline-label">' + escapeHtml(ev.label) + (ev.sub ? ' <span class="muted">· ' + escapeHtml(ev.sub) + '</span>' : '') + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') + '</div>'
+    : '<div class="admin-empty">Aucun historique pour le moment.</div>';
 
   function apptRow(a, showLink){
     var vehicule = [a.marque, a.modele].filter(Boolean).join(' ') || '—';
@@ -1013,6 +1074,18 @@ function renderClientDetail(id){
       '<div class="stat-card"><div class="label">Total impayé</div><div class="value' + (totalUnpaid > 0 ? ' warn' : ' ok') + '">' + eur(totalUnpaid) + '</div></div>' +
       '<div class="stat-card"><div class="label">Véhicules</div><div class="value">' + c.vehicules.length + '</div></div>' +
       '<div class="stat-card"><div class="label">Rendez-vous liés</div><div class="value">' + linkedAppts.length + '</div></div>' +
+    '</div>' +
+
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Fidélité</h3></div>' +
+      '<p class="hint" style="margin-bottom:14px;">' + paidCount + ' facture(s) payée(s) au total — une remise fidélité tous les ' + FIDELITY_THRESHOLD + ' entretiens.</p>' +
+      '<div class="fidelity-track"><div class="fidelity-fill" style="width:' + fidelityPct + '%;"></div></div>' +
+      '<p class="hint" style="margin-top:10px; margin-bottom:0;">' + (fidelityReady ? '🎉 Ce client a mérité une remise fidélité !' : 'Encore ' + fidelityRemaining + ' entretien(s) avant la prochaine remise.') + '</p>' +
+    '</div>' +
+
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Historique d\'activité</h3></div>' +
+      timelineHtml +
     '</div>' +
 
     '<div class="admin-panel">' +
@@ -1136,6 +1209,132 @@ function renderReports(){
     '</div>';
 }
 
+/* ---------- render: testimonials (avis) ---------- */
+function starsHtml(note){
+  var s = '';
+  for(var i = 1; i <= 5; i++){ s += i <= note ? '★' : '☆'; }
+  return s;
+}
+
+function renderTestimonials(){
+  var list = STATE.testimonials || [];
+  var rows = list.map(function(t){
+    return '<tr>' +
+      '<td><strong>' + escapeHtml(t.nom) + '</strong></td>' +
+      '<td><span class="stars">' + starsHtml(t.note) + '</span></td>' +
+      '<td class="muted" style="max-width:360px;">' + escapeHtml(t.texte) + '</td>' +
+      '<td>' + (t.published
+        ? '<span class="chip-status tone-paid"><span class="dot"></span>Publié</span>'
+        : '<span class="chip-status tone-sent"><span class="dot"></span>Masqué</span>') + '</td>' +
+      '<td><div class="row-actions">' +
+        '<button type="button" class="btn btn-line" data-action="toggle-testimonial" data-id="' + t.id + '">' + (t.published ? 'Masquer' : 'Publier') + '</button>' +
+        '<button type="button" class="btn btn-line" data-action="edit-testimonial" data-id="' + t.id + '">Modifier</button>' +
+        '<button type="button" class="btn btn-line" data-action="delete-testimonial" data-id="' + t.id + '">Suppr.</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+
+  return '' +
+    '<div class="admin-panel-head" style="margin-bottom:24px;">' +
+      '<div><div class="admin-section-title" style="margin-bottom:6px;">Avis clients</div><div class="admin-section-sub" style="margin-bottom:0;">Les avis publiés apparaissent sur le site public.</div></div>' +
+      '<button type="button" class="btn btn-fill" data-action="new-testimonial">+ Ajouter un avis</button>' +
+    '</div>' +
+    '<div class="admin-panel">' +
+      (list.length
+        ? '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Client</th><th>Note</th><th>Avis</th><th>Statut</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '<div class="admin-empty">Aucun avis pour le moment.</div>') +
+    '</div>';
+}
+
+function openTestimonialForm(existing){
+  var isEdit = !!existing;
+  var t = existing || {note:5, published:true};
+  openModal(
+    '<h3>' + (isEdit ? 'Modifier l\'avis' : 'Ajouter un avis') + '</h3>' +
+    '<form id="testiForm">' +
+      '<div class="field-grid two">' +
+        '<div class="field"><label>Nom du client<span class="req">*</span></label><input type="text" name="nom" required value="' + escapeHtml(t.nom || '') + '"></div>' +
+        '<div class="field"><label>Note</label><select name="note">' +
+          [1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (n === t.note ? ' selected' : '') + '>' + n + ' étoile' + (n > 1 ? 's' : '') + '</option>'; }).join('') +
+        '</select></div>' +
+      '</div>' +
+      '<div class="field"><label>Avis<span class="req">*</span></label><textarea name="texte" required style="min-height:100px;">' + escapeHtml(t.texte || '') + '</textarea></div>' +
+      '<div class="field"><label style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:0.88rem;"><input type="checkbox" name="published" style="width:auto;"' + (t.published !== false ? ' checked' : '') + '> Visible sur le site public</label></div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
+        '<button type="submit" class="btn btn-fill">' + (isEdit ? 'Enregistrer' : 'Ajouter') + '</button>' +
+      '</div>' +
+    '</form>'
+  );
+  var form = document.getElementById('testiForm');
+  form.querySelector('[data-close]').onclick = closeModal;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var nom = form.nom.value.trim();
+    var texte = form.texte.value.trim();
+    if(!nom || !texte) return;
+    var payload = {nom: nom, note: parseInt(form.note.value, 10), texte: texte, published: form.published.checked};
+    var req = isEdit
+      ? api('PATCH', '/api/admin/testimonials/' + t.id, payload)
+      : api('POST', '/api/admin/testimonials', payload);
+    afterAction(req);
+    closeModal();
+  });
+}
+
+/* ---------- render: comptes admin ---------- */
+function renderAccounts(){
+  var list = STATE.adminUsers || [];
+  var rows = list.map(function(u){
+    var isSelf = CURRENT_USERNAME && u.username === CURRENT_USERNAME;
+    return '<tr>' +
+      '<td><strong>' + escapeHtml(u.username) + '</strong>' + (isSelf ? ' <span class="muted">(vous)</span>' : '') + '</td>' +
+      '<td class="muted">' + escapeHtml(fmtFr((u.createdAt || '').slice(0, 10))) + '</td>' +
+      '<td>' + (list.length > 1 && !isSelf
+        ? '<button type="button" class="btn btn-line" data-action="delete-account" data-id="' + u.id + '">Supprimer</button>'
+        : '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '' +
+    '<div class="admin-panel-head" style="margin-bottom:24px;">' +
+      '<div><div class="admin-section-title" style="margin-bottom:6px;">Comptes admin</div><div class="admin-section-sub" style="margin-bottom:0;">Personnes ayant accès à cet espace atelier.</div></div>' +
+      '<button type="button" class="btn btn-fill" data-action="new-account">+ Nouveau compte</button>' +
+    '</div>' +
+    '<div class="admin-panel">' +
+      '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Identifiant</th><th>Créé le</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '</div>';
+}
+
+function openAccountForm(){
+  openModal(
+    '<h3>Nouveau compte admin</h3>' +
+    '<form id="accForm">' +
+      '<div class="field" style="margin-bottom:16px;"><label>Identifiant<span class="req">*</span></label><input type="text" name="username" required autocomplete="off"></div>' +
+      '<div class="field" style="margin-bottom:16px;"><label>Mot de passe (8 caractères min.)<span class="req">*</span></label><input type="password" name="password" required minlength="8" autocomplete="new-password"></div>' +
+      '<p class="login-error" id="accError"></p>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
+        '<button type="submit" class="btn btn-fill">Créer le compte</button>' +
+      '</div>' +
+    '</form>'
+  );
+  var form = document.getElementById('accForm');
+  form.querySelector('[data-close]').onclick = closeModal;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var errorEl = document.getElementById('accError');
+    errorEl.classList.remove('show');
+    api('POST', '/api/admin/users', {username: form.username.value.trim(), password: form.password.value})
+      .then(function(){ return refreshState(); })
+      .then(function(){ notice('Compte créé.', 'ok'); closeModal(); })
+      .catch(function(err){
+        errorEl.textContent = err && err.status === 409 ? 'Cet identifiant est déjà utilisé.' : 'Identifiant ou mot de passe invalide (8 caractères min.).';
+        errorEl.classList.add('show');
+      });
+  });
+}
+
 /* ---------- shell / router ---------- */
 function renderAdmin(){
   var el = document.getElementById('adminApp');
@@ -1153,6 +1352,8 @@ function renderAdmin(){
   else if(adminState.tab === 'clients') content = renderClients();
   else if(adminState.tab === 'client') content = renderClientDetail(adminState.clientId);
   else if(adminState.tab === 'reports') content = renderReports();
+  else if(adminState.tab === 'testimonials') content = renderTestimonials();
+  else if(adminState.tab === 'accounts') content = renderAccounts();
   else content = renderDashboard();
 
   el.innerHTML =
@@ -1164,6 +1365,8 @@ function renderAdmin(){
         tabBtn('appointments', 'Rendez-vous' + (newCount ? ' · ' + newCount : '')) +
         tabBtn('clients', 'Clients') +
         tabBtn('reports', 'Rapports') +
+        tabBtn('testimonials', 'Avis') +
+        tabBtn('accounts', 'Comptes') +
       '</div>' +
       '<div class="row-actions">' +
         '<a class="btn btn-line btn-sm" href="/">Voir le site public</a>' +
@@ -1283,6 +1486,20 @@ document.getElementById('adminApp').addEventListener('click', function(e){
   } else if(action === 'save-notes'){
     var val = document.getElementById('clientNotes').value;
     afterAction(api('PATCH', '/api/admin/clients/' + id + '/notes', {notes: val}));
+  } else if(action === 'new-testimonial'){
+    openTestimonialForm(null);
+  } else if(action === 'edit-testimonial'){
+    var testi = (STATE.testimonials || []).find(function(t){ return t.id === parseInt(id, 10); });
+    if(testi) openTestimonialForm(testi);
+  } else if(action === 'toggle-testimonial'){
+    var toToggle = (STATE.testimonials || []).find(function(t){ return t.id === parseInt(id, 10); });
+    if(toToggle) afterAction(api('PATCH', '/api/admin/testimonials/' + id, {nom: toToggle.nom, note: toToggle.note, texte: toToggle.texte, published: !toToggle.published}));
+  } else if(action === 'delete-testimonial'){
+    if(confirm('Supprimer cet avis ?')) afterAction(api('DELETE', '/api/admin/testimonials/' + id));
+  } else if(action === 'new-account'){
+    openAccountForm();
+  } else if(action === 'delete-account'){
+    if(confirm('Supprimer ce compte admin ?')) afterAction(api('DELETE', '/api/admin/users/' + id));
   }
 });
 

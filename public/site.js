@@ -101,6 +101,29 @@ function refreshPublicStatus(){
 refreshPublicStatus();
 setInterval(refreshPublicStatus, 60000);
 
+/* ---------- avis clients ---------- */
+function starsHtml(note){
+  var s = '';
+  for(var i = 1; i <= 5; i++){ s += i <= note ? '★' : '☆'; }
+  return s;
+}
+fetch('/api/testimonials')
+  .then(function(r){ return r.ok ? r.json() : []; })
+  .then(function(list){
+    var section = document.getElementById('avis');
+    var grid = document.getElementById('testiGrid');
+    if(!section || !grid || !list || !list.length) return;
+    grid.innerHTML = list.map(function(t){
+      return '<div class="testi-card">' +
+        '<div class="stars">' + starsHtml(t.note) + '</div>' +
+        '<p>' + escapeHtml(t.texte) + '</p>' +
+        '<div class="who">' + escapeHtml(t.nom) + '</div>' +
+      '</div>';
+    }).join('');
+    section.hidden = false;
+  })
+  .catch(function(){});
+
 /* ---------- rendez-vous form ---------- */
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, function(c){
