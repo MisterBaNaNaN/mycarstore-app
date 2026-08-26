@@ -16,12 +16,16 @@ Le site est sur http://localhost:3000, l'admin sur http://localhost:3000/admin.
 
 ## Déployer en ligne (Railway)
 
-1. Crée un compte sur [railway.app](https://railway.app) (gratuit pour commencer).
-2. Crée un nouveau projet, "Deploy from GitHub repo" (il faut d'abord pousser ce dossier sur un dépôt GitHub — demande-moi si tu veux de l'aide pour ça), ou utilise la CLI Railway (`railway up`) directement depuis ce dossier.
-3. Railway détecte automatiquement `package.json` et lance `npm start`.
-4. Dans les paramètres du service, ajoute un **volume persistant** monté sur le dossier du projet (pour que `data.sqlite` survive aux redéploiements — c'est important, sans ça la base serait effacée à chaque déploiement).
-5. Une fois déployé, ouvre un terminal Railway (ou lance une tâche "one-off") et exécute `npm run seed` pour créer le premier compte admin sur le serveur en ligne.
-6. Railway te donne une URL du type `mycarstore.up.railway.app` — utilisable telle quelle, ou tu peux y attacher un nom de domaine personnalisé (ex. mycarstore.fr) depuis les paramètres du projet une fois que tu l'auras acheté.
+Le dépôt GitHub est déjà prêt : [github.com/MisterBaNaNaN/mycarstore-app](https://github.com/MisterBaNaNaN/mycarstore-app).
+
+1. Crée un compte sur [railway.app](https://railway.app) — le plus simple est "Login with GitHub" (même compte que celui qui héberge le dépôt).
+2. **New Project** → **Deploy from GitHub repo** → sélectionne `mycarstore-app`. Railway détecte `package.json` et lance `npm start` automatiquement.
+3. Dans les **Settings** du service → **Variables**, ajoute :
+   - `DB_PATH` = `/data/data.sqlite`
+   - `NODE_ENV` = `production`
+4. Dans **Settings** → **Volumes**, ajoute un volume monté sur `/data` (obligatoire — sans ça, la base serait effacée à chaque redéploiement).
+5. Une fois déployé, ouvre l'onglet **Shell** du service (ou une commande "one-off") et lance `npm run seed` pour créer le premier compte admin en ligne — il affichera un identifiant/mot de passe, à noter.
+6. Railway donne une URL du type `mycarstore-app.up.railway.app`, utilisable telle quelle. Un nom de domaine personnalisé (ex. mycarstore.fr) peut être attaché plus tard depuis les paramètres du projet, une fois acheté.
 
 ## Sécurité — à faire avant un vrai lancement public
 
