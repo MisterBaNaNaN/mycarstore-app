@@ -216,7 +216,7 @@ function openVehicleForm(clientId, vehicle){
       '</div>' +
       '<div class="field-grid two">' +
         '<div class="field"><label>Année</label><input type="number" name="annee" min="1970" max="2026" value="' + escapeHtml(v.annee || '') + '"></div>' +
-        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1000" value="' + escapeHtml(v.km || '') + '"></div>' +
+        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1" value="' + escapeHtml(v.km || '') + '"></div>' +
       '</div>' +
       '<div class="field-grid two">' +
         '<div class="field"><label>Immatriculation</label><input type="text" name="immat" value="' + escapeHtml(v.immat || '') + '"></div>' +
@@ -271,7 +271,7 @@ function openDocForm(clientId, kind, entry){
       '<div class="field" style="margin-bottom:16px;"><label>Véhicule concerné</label><select name="vehiculeId">' + vehOptions + '</select></div>' +
       '<div class="field" id="vehKmField" style="margin-bottom:16px; display:none;">' +
         '<label>Kilométrage relevé <span style="text-transform:none; letter-spacing:0;">(mettra à jour la fiche du véhicule)</span></label>' +
-        '<input type="number" name="vehiculeKm" min="0" step="100">' +
+        '<input type="number" name="vehiculeKm" min="0" step="1">' +
       '</div>' +
       '<label style="display:block; margin-bottom:8px;">Lignes<span class="req">*</span></label>' +
       '<div id="docItems"></div>' +
@@ -360,7 +360,7 @@ function openDocForm(clientId, kind, entry){
     row.className = 'doc-item-row';
     row.innerHTML =
       '<input type="text" class="di-label" placeholder="Désignation" value="' + (prefill ? escapeHtml(prefill.label) : '') + '">' +
-      '<input type="number" class="di-qty" placeholder="Qté" value="' + (prefill ? prefill.qty : 1) + '" min="0" step="1">' +
+      '<input type="number" class="di-qty" placeholder="Qté" value="' + (prefill ? prefill.qty : 1) + '" min="0" step="any">' +
       '<input type="number" class="di-price" placeholder="Prix unitaire €" min="0" step="0.01" value="' + (prefill ? prefill.price : '') + '">' +
       '<span class="di-total">' + eur(prefill ? prefill.qty * prefill.price : 0) + '</span>' +
       '<button type="button" class="di-remove" title="Retirer la ligne">×</button>';
@@ -643,7 +643,7 @@ function openApptForm(existing){
       '</div>' +
       '<div class="field-grid two" style="margin-bottom:16px;">' +
         '<div class="field"><label>Année</label><input type="number" name="annee" min="1970" max="2026" value="' + escapeHtml(existing && existing.annee || '') + '"></div>' +
-        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1000" value="' + escapeHtml(existing && existing.km || '') + '"></div>' +
+        '<div class="field"><label>Kilométrage</label><input type="number" name="km" min="0" step="1" value="' + escapeHtml(existing && existing.km || '') + '"></div>' +
       '</div>' +
       '<div class="field" style="margin-bottom:16px;"><label>Immatriculation</label><input type="text" name="immat" value="' + escapeHtml(existing && existing.immat || '') + '"></div>' +
       '<div class="field" style="margin-bottom:16px;">' +
