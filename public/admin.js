@@ -62,19 +62,21 @@ function apptStatusActions(a){
 }
 
 /* ---------- API + state ---------- */
-var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[], fidelity:{threshold:5, reward:'une remise fidélité'}};
+var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[], fidelity:{threshold:5, reward:'une remise fidélité'}, docTemplates:[]};
 var CURRENT_USERNAME = null;
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
 var REPORTS = null;
 
 /* ---------- notifications navigateur (nouvelles demandes / avis) ---------- */
 var pollTimer = null;
-var notifyBaseline = {initialized:false, pendingAppointments:0, pendingTestimonials:0};
+var NEGATIVE_REVIEW_THRESHOLD = 2;
+var notifyBaseline = {initialized:false, pendingAppointments:0, pendingTestimonials:0, negativeIds:[]};
 
 function pendingCounts(){
   return {
     pendingAppointments: STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length,
-    pendingTestimonials: (STATE.testimonials || []).filter(function(t){ return !t.published; }).length
+    pendingTestimonials: (STATE.testimonials || []).filter(function(t){ return !t.published; }).length,
+    negativeIds: (STATE.testimonials || []).filter(function(t){ return t.note <= NEGATIVE_REVIEW_THRESHOLD; }).map(function(t){ return t.id; })
   };
 }
 
@@ -82,6 +84,7 @@ function syncNotifyBaseline(){
   var c = pendingCounts();
   notifyBaseline.pendingAppointments = c.pendingAppointments;
   notifyBaseline.pendingTestimonials = c.pendingTestimonials;
+  notifyBaseline.negativeIds = c.negativeIds;
   notifyBaseline.initialized = true;
 }
 
@@ -104,9 +107,15 @@ function pollForUpdates(){
       if(c.pendingTestimonials > notifyBaseline.pendingTestimonials){
         notifyBrowser('Nouvel avis client', 'Un avis est en attente de modération.');
       }
+      var newNegatives = c.negativeIds.filter(function(id){ return notifyBaseline.negativeIds.indexOf(id) === -1; });
+      newNegatives.forEach(function(id){
+        var t = (STATE.testimonials || []).find(function(x){ return x.id === id; });
+        if(t) notifyBrowser('⚠️ Avis négatif reçu', t.nom + ' — ' + t.note + ' étoile(s)');
+      });
     }
     notifyBaseline.pendingAppointments = c.pendingAppointments;
     notifyBaseline.pendingTestimonials = c.pendingTestimonials;
+    notifyBaseline.negativeIds = c.negativeIds;
     notifyBaseline.initialized = true;
 
     var modalOpen = !!document.getElementById('modalOverlay');
@@ -368,9 +377,19 @@ function openDocForm(clientId, kind, entry){
         '<label>Kilométrage relevé <span style="text-transform:none; letter-spacing:0;">(mettra à jour la fiche du véhicule)</span></label>' +
         '<input type="number" name="vehiculeKm" min="0" step="1">' +
       '</div>' +
+      (STATE.docTemplates.length
+        ? '<div class="field" style="margin-bottom:16px;"><label>Charger un modèle</label><select id="templateSelect">' +
+            '<option value="">— Choisir un modèle —</option>' +
+            STATE.docTemplates.map(function(t){ return '<option value="' + t.id + '">' + escapeHtml(t.nom) + '</option>'; }).join('') +
+          '</select></div>'
+        : '') +
       '<label style="display:block; margin-bottom:8px;">Lignes<span class="req">*</span></label>' +
       '<div id="docItems"></div>' +
-      '<button type="button" id="addLineBtn" class="btn btn-line btn-sm" style="margin-top:6px;">+ Ajouter une ligne</button>' +
+      '<div class="row-actions" style="margin-top:6px;">' +
+        '<button type="button" id="addLineBtn" class="btn btn-line btn-sm">+ Ajouter une ligne</button>' +
+        '<button type="button" id="saveTemplateBtn" class="btn btn-line btn-sm">Enregistrer comme modèle</button>' +
+        (STATE.docTemplates.length ? '<button type="button" id="manageTemplatesBtn" class="btn btn-line btn-sm">Gérer les modèles</button>' : '') +
+      '</div>' +
       '<div class="field-grid two" style="margin:18px 0 4px;">' +
         '<div class="field"><label>Remise</label><select name="discountType">' +
           '<option value=""' + (!hasDiscount ? ' selected' : '') + '>Aucune</option>' +
@@ -486,6 +505,38 @@ function openDocForm(clientId, kind, entry){
   document.getElementById('addLineBtn').addEventListener('click', function(){ addRow(); });
   form.querySelector('[data-close]').onclick = closeModal;
 
+  var templateSelect = document.getElementById('templateSelect');
+  if(templateSelect){
+    templateSelect.addEventListener('change', function(){
+      var tpl = STATE.docTemplates.find(function(t){ return t.id === parseInt(templateSelect.value, 10); });
+      if(!tpl) return;
+      var rows = itemsWrap.querySelectorAll('.doc-item-row');
+      if(rows.length === 1 && !rows[0].querySelector('.di-label').value.trim()){ rows[0].remove(); }
+      tpl.items.forEach(function(it){ addRow(it); });
+      updateGrandTotal();
+      templateSelect.value = '';
+    });
+  }
+
+  document.getElementById('saveTemplateBtn').addEventListener('click', function(){
+    var items = [];
+    itemsWrap.querySelectorAll('.doc-item-row').forEach(function(row){
+      var label = row.querySelector('.di-label').value.trim();
+      var qty = parseFloat(row.querySelector('.di-qty').value) || 0;
+      var price = parseFloat(row.querySelector('.di-price').value) || 0;
+      if(label && qty > 0){ items.push({label:label, qty:qty, price:price}); }
+    });
+    if(items.length === 0){ notice('Ajoutez au moins une ligne avant d\'enregistrer un modèle.', 'warn'); return; }
+    var nom = prompt('Nom du modèle (ex. « Vidange standard ») :', '');
+    if(!nom || !nom.trim()) return;
+    afterAction(api('POST', '/api/admin/templates', {nom: nom.trim(), items: items}), 'Modèle enregistré.');
+  });
+
+  var manageTemplatesBtn = document.getElementById('manageTemplatesBtn');
+  if(manageTemplatesBtn){
+    manageTemplatesBtn.addEventListener('click', openTemplatesManager);
+  }
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
     var items = [];
@@ -514,6 +565,35 @@ function openDocForm(clientId, kind, entry){
     afterAction(req);
     closeModal();
   });
+}
+
+function openTemplatesManager(){
+  if(!confirm('Ouvrir la gestion des modèles ? Le formulaire en cours sera fermé (les lignes non enregistrées seront perdues).')) return;
+  renderTemplatesManagerModal();
+}
+
+function renderTemplatesManagerModal(){
+  var rows = STATE.docTemplates.map(function(t){
+    return '<tr><td>' + escapeHtml(t.nom) + '</td><td class="muted">' + t.items.length + ' ligne(s)</td>' +
+      '<td><button type="button" class="btn btn-line" data-tpl-id="' + t.id + '">Supprimer</button></td></tr>';
+  }).join('');
+  openModal(
+    '<h3>Modèles de devis/factures</h3>' +
+    (STATE.docTemplates.length
+      ? '<div style="overflow-x:auto; margin-bottom:16px;"><table class="admin-table"><thead><tr><th>Nom</th><th>Lignes</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="admin-empty" style="margin-bottom:16px;">Aucun modèle enregistré. Créez-en un depuis un devis ou une facture, avec « Enregistrer comme modèle ».</div>') +
+    '<div class="modal-actions"><button type="button" class="btn btn-line" data-close>Fermer</button></div>'
+  );
+  document.querySelectorAll('[data-tpl-id]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(!confirm('Supprimer ce modèle ?')) return;
+      api('DELETE', '/api/admin/templates/' + btn.getAttribute('data-tpl-id'))
+        .then(refreshState)
+        .then(renderTemplatesManagerModal)
+        .catch(function(){ notice('Échec de la suppression.', 'warn'); });
+    });
+  });
+  document.querySelector('[data-close]').onclick = closeModal;
 }
 
 function openVacationForm(){
@@ -1338,11 +1418,17 @@ function starsHtml(note){
 }
 
 function renderTestimonials(){
-  var list = STATE.testimonials || [];
+  var list = (STATE.testimonials || []).slice().sort(function(a, b){
+    var aNeg = a.note <= NEGATIVE_REVIEW_THRESHOLD ? 0 : 1;
+    var bNeg = b.note <= NEGATIVE_REVIEW_THRESHOLD ? 0 : 1;
+    return aNeg - bNeg;
+  });
+  var negativeCount = list.filter(function(t){ return t.note <= NEGATIVE_REVIEW_THRESHOLD; }).length;
   var rows = list.map(function(t){
-    return '<tr>' +
+    var isNegative = t.note <= NEGATIVE_REVIEW_THRESHOLD;
+    return '<tr' + (isNegative ? ' style="border-left:3px solid #ff5c5c;"' : '') + '>' +
       '<td><strong>' + escapeHtml(t.nom) + '</strong></td>' +
-      '<td><span class="stars">' + starsHtml(t.note) + '</span></td>' +
+      '<td><span class="stars">' + starsHtml(t.note) + '</span>' + (isNegative ? ' <span class="chip-status tone-overdue"><span class="dot"></span>Négatif</span>' : '') + '</td>' +
       '<td class="muted" style="max-width:360px;">' + escapeHtml(t.texte) + '</td>' +
       '<td>' + (t.published
         ? '<span class="chip-status tone-paid"><span class="dot"></span>Publié</span>'
@@ -1357,7 +1443,7 @@ function renderTestimonials(){
 
   return '' +
     '<div class="admin-panel-head" style="margin-bottom:24px;">' +
-      '<div><div class="admin-section-title" style="margin-bottom:6px;">Avis clients</div><div class="admin-section-sub" style="margin-bottom:0;">Les avis publiés apparaissent sur le site public.</div></div>' +
+      '<div><div class="admin-section-title" style="margin-bottom:6px;">Avis clients</div><div class="admin-section-sub" style="margin-bottom:0;">Les avis publiés apparaissent sur le site public.' + (negativeCount ? ' — <span style="color:#ff5c5c;">' + negativeCount + ' avis négatif' + (negativeCount > 1 ? 's' : '') + ' (2 étoiles ou moins) à traiter</span>' : '') + '</div></div>' +
       '<button type="button" class="btn btn-fill" data-action="new-testimonial">+ Ajouter un avis</button>' +
     '</div>' +
     '<div class="admin-panel">' +
@@ -1461,7 +1547,7 @@ function renderAdmin(){
   var el = document.getElementById('adminApp');
   if(!el || el.hidden) return;
   var newCount = STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length;
-  var pendingTestimonials = (STATE.testimonials || []).filter(function(t){ return !t.published; }).length;
+  var attentionTestimonials = (STATE.testimonials || []).filter(function(t){ return !t.published || t.note <= NEGATIVE_REVIEW_THRESHOLD; }).length;
 
   function tabBtn(key, label){
     var active = adminState.tab === key || (key === 'clients' && adminState.tab === 'client');
@@ -1487,7 +1573,7 @@ function renderAdmin(){
         tabBtn('appointments', 'Rendez-vous' + (newCount ? ' · ' + newCount : '')) +
         tabBtn('clients', 'Clients') +
         tabBtn('reports', 'Rapports') +
-        tabBtn('testimonials', 'Avis' + (pendingTestimonials ? ' · ' + pendingTestimonials : '')) +
+        tabBtn('testimonials', 'Avis' + (attentionTestimonials ? ' · ' + attentionTestimonials : '')) +
         tabBtn('accounts', 'Comptes') +
       '</div>' +
       '<div class="row-actions">' +

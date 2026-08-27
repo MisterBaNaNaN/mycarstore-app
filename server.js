@@ -393,6 +393,23 @@ adminRouter.delete('/invoices/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+adminRouter.post('/templates', (req, res) => {
+  const b = req.body || {};
+  const nom = str(b.nom).trim();
+  const items = toItemsArray(b.items);
+  if (!nom || items.length === 0) { res.status(400).json({ error: 'invalid_input' }); return; }
+  const createdAt = new Date().toISOString();
+  const result = db.prepare('INSERT INTO doc_templates (created_at, nom, items) VALUES (?, ?, ?)')
+    .run(createdAt, nom, JSON.stringify(items));
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
+adminRouter.delete('/templates/:id', (req, res) => {
+  const info = db.prepare('DELETE FROM doc_templates WHERE id = ?').run(Number(req.params.id));
+  if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
 adminRouter.post('/fidelity', (req, res) => {
   const b = req.body || {};
   let threshold = Math.round(Number(b.threshold));

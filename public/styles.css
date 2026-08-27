@@ -773,6 +773,14 @@ header.scrolled + .closure-banner .wrap{padding-top:1px;}
 
 /* ---------- rendez-vous ---------- */
 .rdv{background:var(--surface); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.availability-pill{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.04em;
+  color:var(--lime); border:1px solid rgba(220,250,0,0.35); border-radius:999px;
+  padding:8px 15px 8px 12px; margin:-28px 0 40px;
+}
+.availability-pill.full{color:var(--warn); border-color:rgba(255,176,32,0.35);}
+.availability-pill.full .dot{background:var(--warn); box-shadow:0 0 0 3px rgba(255,176,32,0.18);}
 .rdv-single{max-width:720px; margin:0 auto;}
 
 .form-card{

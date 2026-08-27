@@ -101,6 +101,48 @@ function refreshPublicStatus(){
 refreshPublicStatus();
 setInterval(refreshPublicStatus, 60000);
 
+/* ---------- compteur de disponibilité en direct ---------- */
+function computeAvailability(){
+  var pill = document.getElementById('availabilityPill');
+  var textEl = document.getElementById('availabilityText');
+  if(!pill || !textEl) return;
+
+  fetch('/api/public-status').then(function(r){ return r.ok ? r.json() : {mode:'open'}; }).catch(function(){ return {mode:'open'}; }).then(function(status){
+    var days = [];
+    for(var i = 0; i < 7; i++){
+      var d = new Date();
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+
+    var promises = days.map(function(day){
+      var dow = day.getDay();
+      var iso = day.getFullYear() + '-' + pad2(day.getMonth() + 1) + '-' + pad2(day.getDate());
+      var closedByStatus = (status.mode === 'vacation' && status.vacationUntil && iso <= status.vacationUntil) ||
+        (status.mode === 'closed_today' && status.closedTodayDate === iso);
+      var slots = closedByStatus ? null : slotsForDay(dow);
+      if(!slots) return 0;
+      return fetch('/api/taken-slots?date=' + encodeURIComponent(iso))
+        .then(function(r){ return r.ok ? r.json() : {taken:[]}; })
+        .then(function(data){ return Math.max(0, slots.length - (data.taken || []).length); })
+        .catch(function(){ return slots.length; });
+    });
+
+    Promise.all(promises).then(function(counts){
+      var total = counts.reduce(function(a, b){ return a + b; }, 0);
+      if(total > 0){
+        pill.classList.remove('full');
+        textEl.textContent = total + ' créneau' + (total > 1 ? 'x' : '') + ' disponible' + (total > 1 ? 's' : '') + ' cette semaine';
+      } else {
+        pill.classList.add('full');
+        textEl.textContent = 'Complet cette semaine — contactez-nous directement';
+      }
+      pill.hidden = false;
+    });
+  });
+}
+computeAvailability();
+
 /* ---------- avis clients ---------- */
 function starsHtml(note){
   var s = '';
