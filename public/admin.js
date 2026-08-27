@@ -12,6 +12,13 @@ function fmtFrDateTime(isoStr){
   if(!isoStr) return '—';
   return new Date(isoStr).toLocaleString('fr-FR', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'});
 }
+function creneauStartMinutes(creneau){
+  var m = /(\d{1,2})h(\d{2})?/.exec(creneau || '');
+  if(!m) return 9999;
+  var h = parseInt(m[1], 10);
+  var mi = m[2] ? parseInt(m[2], 10) : 0;
+  return h * 60 + mi;
+}
 function eur(n){
   return (Math.round((n || 0) * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
 }
@@ -62,7 +69,7 @@ function apptStatusActions(a){
 }
 
 /* ---------- API + state ---------- */
-var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[], fidelity:{threshold:5, reward:'une remise fidélité'}, docTemplates:[]};
+var STATE = {status:{mode:'open'}, appointments:[], clients:[], alerts:[], testimonials:[], adminUsers:[], fidelity:{threshold:5, reward:'une remise fidélité'}, docTemplates:[], overloadThreshold:6};
 var CURRENT_USERNAME = null;
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
 var REPORTS = null;
@@ -477,6 +484,7 @@ function openDocForm(clientId, kind, entry){
       '<input type="number" class="di-qty" placeholder="Qté" value="' + (prefill ? prefill.qty : 1) + '" min="0" step="any">' +
       '<input type="number" class="di-price" placeholder="Prix unitaire €" min="0" step="0.01" value="' + (prefill ? prefill.price : '') + '">' +
       '<span class="di-total">' + eur(prefill ? prefill.qty * prefill.price : 0) + '</span>' +
+      (kind === 'quote' ? '<label class="di-deferred-label" title="Le client n\'a pas retenu cette ligne — la proposer au prochain passage"><input type="checkbox" class="di-deferred"' + (prefill && prefill.deferred ? ' checked' : '') + '> Reporté</label>' : '') +
       '<button type="button" class="di-remove" title="Retirer la ligne">×</button>';
     var qty = row.querySelector('.di-qty');
     var price = row.querySelector('.di-price');
@@ -544,7 +552,8 @@ function openDocForm(clientId, kind, entry){
       var label = row.querySelector('.di-label').value.trim();
       var qty = parseFloat(row.querySelector('.di-qty').value) || 0;
       var price = parseFloat(row.querySelector('.di-price').value) || 0;
-      if(label && qty > 0){ items.push({label:label, qty:qty, price:price}); }
+      var deferredBox = row.querySelector('.di-deferred');
+      if(label && qty > 0){ items.push({label:label, qty:qty, price:price, deferred: deferredBox ? deferredBox.checked : false}); }
     });
     if(items.length === 0) return;
     var payload = {
@@ -640,6 +649,30 @@ function openFidelityForm(){
     var reward = form.reward.value.trim();
     if(!(threshold >= 1) || !reward) return;
     afterAction(api('POST', '/api/admin/fidelity', {threshold: threshold, reward: reward}));
+    closeModal();
+  });
+}
+
+function openOverloadForm(){
+  var threshold = STATE.overloadThreshold || 6;
+  openModal(
+    '<h3>Alerte de surcharge</h3>' +
+    '<p style="color:var(--steel); font-size:0.88rem; margin-bottom:18px; line-height:1.5;">Un jour est signalé sur le tableau de bord dès qu\'il atteint ce nombre de rendez-vous (annulés exclus).</p>' +
+    '<form id="overloadForm">' +
+      '<div class="field" style="margin-bottom:16px;"><label>Seuil (RDV / jour)<span class="req">*</span></label><input type="number" name="threshold" min="1" max="50" step="1" required value="' + escapeHtml(threshold) + '"></div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
+        '<button type="submit" class="btn btn-fill">Enregistrer</button>' +
+      '</div>' +
+    '</form>'
+  );
+  var form = document.getElementById('overloadForm');
+  form.querySelector('[data-close]').onclick = closeModal;
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var val = parseInt(form.threshold.value, 10);
+    if(!(val >= 1)) return;
+    afterAction(api('POST', '/api/admin/overload-threshold', {threshold: val}));
     closeModal();
   });
 }
@@ -859,10 +892,11 @@ function openApptForm(existing){
         '</div>' +
       '</div>' +
       '<div class="field" style="margin-bottom:16px;"><label>Détails</label><textarea name="message">' + escapeHtml(existing && existing.message || '') + '</textarea></div>' +
-      '<div class="field-grid two" style="margin-bottom:20px;">' +
+      '<div class="field-grid two" style="margin-bottom:8px;">' +
         '<div class="field"><label>Date<span class="req">*</span></label><input type="date" name="date" required value="' + escapeHtml(existing && existing.date || '') + '"></div>' +
         '<div class="field"><label>Créneau<span class="req">*</span></label><input type="text" name="creneau" required placeholder="Ex. 9h – 10h" value="' + escapeHtml(existing && existing.creneau || '') + '"></div>' +
       '</div>' +
+      '<p class="hint" id="apptOverlapWarning" style="display:none; color:var(--warn); margin-bottom:16px;"></p>' +
       '<div class="modal-actions">' +
         '<button type="button" class="btn btn-line" data-close>Annuler</button>' +
         '<button type="submit" class="btn btn-fill">' + (isEdit ? 'Enregistrer' : 'Créer le rendez-vous') + '</button>' +
@@ -872,6 +906,29 @@ function openApptForm(existing){
 
   var form = document.getElementById('apptForm');
   form.querySelector('[data-close]').onclick = closeModal;
+
+  var overlapWarning = document.getElementById('apptOverlapWarning');
+  function findOverlap(){
+    var date = form.date.value;
+    var creneau = form.creneau.value.trim().toLowerCase();
+    if(!date || !creneau) return null;
+    return STATE.appointments.find(function(a){
+      return a.date === date && a.creneau.trim().toLowerCase() === creneau && a.status !== 'annule' && (!isEdit || a.id !== existing.id);
+    });
+  }
+  function checkOverlap(){
+    var conflict = findOverlap();
+    if(conflict){
+      overlapWarning.textContent = '⚠️ Ce créneau est déjà pris par ' + conflict.nom + ' (' + (APPT_STATUS_LABEL[conflict.status] || conflict.status) + ').';
+      overlapWarning.style.display = 'block';
+    } else {
+      overlapWarning.style.display = 'none';
+    }
+  }
+  form.date.addEventListener('change', checkOverlap);
+  form.creneau.addEventListener('input', checkOverlap);
+  checkOverlap();
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
     var services = Array.prototype.slice.call(form.querySelectorAll('input[name="service"]:checked')).map(function(i){ return i.value; });
@@ -880,6 +937,7 @@ function openApptForm(existing){
       return;
     }
     if(!form.checkValidity()){ form.reportValidity(); return; }
+    if(findOverlap() && !confirm('Ce créneau est déjà pris. Créer quand même le rendez-vous ?')) return;
     var payload = {
       nom: form.nom.value.trim(), tel: form.tel.value.trim(), email: form.email.value.trim(),
       marque: form.marque.value.trim(), modele: form.modele.value.trim(), annee: form.annee.value.trim(),
@@ -901,7 +959,7 @@ function openApptForm(existing){
 }
 
 /* ---------- render: dashboard ---------- */
-var COMM_KIND_LABEL = {confirme:'Confirmation RDV', annule:'Annulation RDV', en_attente:'Remise en attente', modifie:'Modification RDV', rappel:'Rappel RDV (veille)'};
+var COMM_KIND_LABEL = {confirme:'Confirmation RDV', annule:'Annulation RDV', en_attente:'Remise en attente', modifie:'Modification RDV', rappel:'Rappel RDV (veille)', nps:'Sondage satisfaction (NPS)'};
 var COMM_CHANNEL_LABEL = {email:'E-mail', sms:'SMS'};
 var COMM_DETAIL_LABEL = {not_configured:'service non configuré', no_recipient:'pas de coordonnée valide', send_failed:"échec de l'envoi", exception:'erreur technique'};
 
@@ -950,6 +1008,24 @@ function renderDashboard(){
   });
   var st = STATE.status || {mode:'open'};
   var alerts = STATE.alerts || [];
+  var overloadThreshold = STATE.overloadThreshold || 6;
+  var overloadDays = [];
+  (function(){
+    var countsByDate = {};
+    STATE.appointments.forEach(function(a){
+      if(a.status === 'annule') return;
+      countsByDate[a.date] = (countsByDate[a.date] || 0) + 1;
+    });
+    var today = new Date();
+    for(var i = 0; i < 14; i++){
+      var d = new Date(today);
+      d.setDate(today.getDate() + i);
+      var iso = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+      if((countsByDate[iso] || 0) >= overloadThreshold){
+        overloadDays.push({date: iso, count: countsByDate[iso]});
+      }
+    }
+  })();
 
   var statusCards =
     '<div class="status-opt' + (st.mode === 'open' ? ' current' : '') + '" data-action="set-status-open">' +
@@ -979,6 +1055,15 @@ function renderDashboard(){
       alertRows(alerts) +
     '</div>' +
     '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Alerte de surcharge' + (overloadDays.length ? ' · ' + overloadDays.length : '') + '</h3><button type="button" class="btn btn-line" data-action="configure-overload">Configurer</button></div>' +
+      (overloadDays.length
+        ? '<p class="hint" style="margin-bottom:14px;">Seuil actuel : ' + overloadThreshold + ' RDV/jour.</p>' +
+          '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Jour</th><th>RDV prévus</th></tr></thead><tbody>' +
+            overloadDays.map(function(d){ return '<tr><td>' + escapeHtml(fmtFr(d.date)) + '</td><td><span class="chip-status tone-soon"><span class="dot"></span>' + d.count + '</span></td></tr>'; }).join('') +
+          '</tbody></table></div>'
+        : '<div class="admin-empty">Aucune journée surchargée dans les 14 prochains jours (seuil : ' + overloadThreshold + ' RDV/jour).</div>') +
+    '</div>' +
+    '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Programme de fidélité</h3><button type="button" class="btn btn-line" data-action="configure-fidelity">Configurer</button></div>' +
       '<p class="hint" style="margin:0;">Récompense tous les <strong style="color:var(--paper);">' + (STATE.fidelity ? STATE.fidelity.threshold : 5) + '</strong> entretiens payés — « ' + escapeHtml(STATE.fidelity ? STATE.fidelity.reward : 'une remise fidélité') + ' ».</p>' +
     '</div>';
@@ -1000,14 +1085,6 @@ function renderAgenda(){
     apptsByDate[a.date] = apptsByDate[a.date] || [];
     apptsByDate[a.date].push(a);
   });
-
-  function creneauStartMinutes(creneau){
-    var m = /(\d{1,2})h(\d{2})?/.exec(creneau || '');
-    if(!m) return 9999;
-    var h = parseInt(m[1], 10);
-    var mi = m[2] ? parseInt(m[2], 10) : 0;
-    return h * 60 + mi;
-  }
 
   var monthLabel = monthStart.toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
   monthLabel = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
@@ -1040,7 +1117,8 @@ function renderAgenda(){
         '<div class="cal-month-label">' + escapeHtml(monthLabel) + '</div>' +
         '<button type="button" class="btn btn-line btn-sm" data-action="cal-next">Suivant →</button>' +
         '<button type="button" class="btn btn-line btn-sm" data-action="cal-today">Aujourd\'hui</button>' +
-        '<button type="button" class="btn btn-fill btn-sm" data-action="new-appt" style="margin-left:auto;">+ Nouveau rendez-vous</button>' +
+        '<button type="button" class="btn btn-line btn-sm" data-action="open-atelier" style="margin-left:auto;">Mode atelier</button>' +
+        '<button type="button" class="btn btn-fill btn-sm" data-action="new-appt">+ Nouveau rendez-vous</button>' +
       '</div>' +
       '<div class="cal-legend">' +
         '<span class="cal-legend-item"><span class="dot cal-attente"></span>En attente</span>' +
@@ -1051,6 +1129,44 @@ function renderAgenda(){
         '<div class="cal-weekdays"><div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div></div>' +
         '<div class="cal-grid">' + cells + '</div>' +
       '</div></div>' +
+    '</div>';
+}
+
+/* ---------- render: vue technicien / mode atelier ---------- */
+function renderAtelier(){
+  var dateIso = adminState.atelierDate || todayStr();
+  var dayAppts = STATE.appointments.filter(function(a){ return a.date === dateIso && a.status !== 'annule'; })
+    .slice().sort(function(a, b){ return creneauStartMinutes(a.creneau) - creneauStartMinutes(b.creneau); });
+
+  var dateObj = new Date(dateIso + 'T00:00:00');
+  var dateLabel = dateObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+  dateLabel = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
+  var cards = dayAppts.length
+    ? dayAppts.map(function(a){
+        var vehicule = [a.marque, a.modele].filter(Boolean).join(' ') || '—';
+        var toneClass = a.status === 'confirme' ? 'atelier-confirme' : 'atelier-attente';
+        return '<div class="atelier-card ' + toneClass + '">' +
+          '<div class="atelier-time">' + escapeHtml(a.creneau || '') + '</div>' +
+          '<div class="atelier-info">' +
+            '<div class="atelier-nom">' + escapeHtml(a.nom) + '</div>' +
+            '<div class="atelier-veh">' + escapeHtml(vehicule) + '</div>' +
+            '<div class="atelier-services">' + escapeHtml((a.services || []).join(', ')) + '</div>' +
+          '</div>' +
+          apptStatusChip(a.status) +
+        '</div>';
+      }).join('')
+    : '<div class="atelier-empty">Aucun rendez-vous ce jour-là.</div>';
+
+  return '' +
+    '<div class="atelier-view">' +
+      '<div class="atelier-head">' +
+        '<button type="button" class="btn btn-line" data-action="atelier-prev">← Veille</button>' +
+        '<div class="atelier-date">' + escapeHtml(dateLabel) + (dateIso === todayStr() ? ' <span class="atelier-today-tag">Aujourd\'hui</span>' : '') + '</div>' +
+        '<button type="button" class="btn btn-line" data-action="atelier-next">Lendemain →</button>' +
+        '<button type="button" class="btn btn-fill" data-action="tab" data-tab="agenda" style="margin-left:auto;">Quitter le mode atelier</button>' +
+      '</div>' +
+      '<div class="atelier-list">' + cards + '</div>' +
     '</div>';
 }
 
@@ -1160,6 +1276,14 @@ function renderClientDetail(id){
   var fidelityReady = paidCount > 0 && fidelityMod === 0;
   var fidelityRemaining = fidelityReady ? 0 : FIDELITY_THRESHOLD - fidelityMod;
   var fidelityPct = fidelityReady ? 100 : Math.round((fidelityMod / FIDELITY_THRESHOLD) * 100);
+
+  var deferredItems = [];
+  c.quotes.forEach(function(q){
+    (q.items || []).forEach(function(it){
+      if(it.deferred){ deferredItems.push({label: it.label, qty: it.qty, price: it.price, date: q.date}); }
+    });
+  });
+  deferredItems.sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); });
 
   var linkedAppts = STATE.appointments.filter(function(a){ return a.clientId === c.id; });
   var possibleAppts = STATE.appointments.filter(function(a){
@@ -1279,6 +1403,17 @@ function renderClientDetail(id){
       '<p class="hint" style="margin-top:10px; margin-bottom:0;">' + (fidelityReady ? '🎉 Ce client a mérité : ' + escapeHtml(fidelitySettings.reward) + ' !' : 'Encore ' + fidelityRemaining + ' entretien(s) avant : ' + escapeHtml(fidelitySettings.reward) + '.') + '</p>' +
     '</div>' +
 
+    (deferredItems.length
+      ? '<div class="admin-panel">' +
+          '<div class="admin-panel-head"><h3>Interventions recommandées mais reportées</h3></div>' +
+          '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Intervention</th><th>Devis du</th><th>Montant</th></tr></thead><tbody>' +
+            deferredItems.map(function(it){
+              return '<tr><td>' + escapeHtml(it.label) + (it.qty > 1 ? ' (×' + it.qty + ')' : '') + '</td><td class="muted">' + escapeHtml(fmtFr(it.date)) + '</td><td>' + eur(it.qty * it.price) + '</td></tr>';
+            }).join('') +
+          '</tbody></table></div>' +
+        '</div>'
+      : '') +
+
     '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Historique d\'activité</h3></div>' +
       timelineHtml +
@@ -1287,6 +1422,18 @@ function renderClientDetail(id){
     '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Journal des communications</h3></div>' +
       commLogHtml(c.communications) +
+      (c.npsResponses && c.npsResponses.length
+        ? '<div style="margin-top:20px; padding-top:18px; border-top:1px solid var(--line);">' +
+            '<h4 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px; color:var(--steel);">Réponses au sondage de satisfaction</h4>' +
+            '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Date</th><th>Note</th><th>Message</th></tr></thead><tbody>' +
+              c.npsResponses.map(function(n){
+                return '<tr><td class="muted">' + escapeHtml(fmtFrDateTime(n.createdAt)) + '</td>' +
+                  '<td>' + (n.score ? '<span class="chip-status ' + (n.score <= 2 ? 'tone-overdue' : n.score >= 4 ? 'tone-paid' : 'tone-sent') + '"><span class="dot"></span>' + n.score + ' / 5</span>' : '<span class="muted">Non reconnue</span>') + '</td>' +
+                  '<td class="muted">' + escapeHtml(n.rawMessage) + '</td></tr>';
+              }).join('') +
+            '</tbody></table></div>' +
+          '</div>'
+        : '') +
     '</div>' +
 
     '<div class="admin-panel">' +
@@ -1546,6 +1693,12 @@ function openAccountForm(){
 function renderAdmin(){
   var el = document.getElementById('adminApp');
   if(!el || el.hidden) return;
+
+  if(adminState.tab === 'atelier'){
+    el.innerHTML = renderAtelier();
+    return;
+  }
+
   var newCount = STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length;
   var attentionTestimonials = (STATE.testimonials || []).filter(function(t){ return !t.published || t.note <= NEGATIVE_REVIEW_THRESHOLD; }).length;
 
@@ -1628,6 +1781,8 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     openVacationForm();
   } else if(action === 'configure-fidelity'){
     openFidelityForm();
+  } else if(action === 'configure-overload'){
+    openOverloadForm();
   } else if(action === 'confirm-appt'){
     afterAction(api('PATCH', '/api/admin/appointments/' + id, {status:'confirme'}), notifiedSummary);
   } else if(action === 'cancel-appt'){
@@ -1656,6 +1811,15 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     openApptDetail(parseInt(id, 10));
   } else if(action === 'new-appt'){
     openApptForm(null);
+  } else if(action === 'open-atelier'){
+    adminState.atelierDate = todayStr();
+    adminState.tab = 'atelier';
+    renderAdmin();
+  } else if(action === 'atelier-prev' || action === 'atelier-next'){
+    var ad = new Date((adminState.atelierDate || todayStr()) + 'T00:00:00');
+    ad.setDate(ad.getDate() + (action === 'atelier-next' ? 1 : -1));
+    adminState.atelierDate = ad.getFullYear() + '-' + pad2(ad.getMonth() + 1) + '-' + pad2(ad.getDate());
+    renderAdmin();
   } else if(action === 'open-client'){
     adminState.tab = 'client';
     adminState.clientId = parseInt(id, 10);
@@ -1727,6 +1891,6 @@ document.getElementById('adminApp').addEventListener('change', function(e){
   if(action === 'set-quote-status'){
     afterAction(api('PATCH', '/api/admin/quotes/' + did, {statut: value}));
   } else if(action === 'set-invoice-status'){
-    afterAction(api('PATCH', '/api/admin/invoices/' + did, {statut: value}));
+    afterAction(api('PATCH', '/api/admin/invoices/' + did, {statut: value}), notifiedSummary);
   }
 });

@@ -1,6 +1,7 @@
 process.env.TZ = process.env.TZ || 'Europe/Paris';
 
 const path = require('node:path');
+const crypto = require('node:crypto');
 const express = require('express');
 const db = require('./lib/db');
 const state = require('./lib/state');
@@ -10,7 +11,9 @@ const reminders = require('./lib/reminders');
 const google = require('./lib/google');
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
@@ -27,7 +30,8 @@ function toItemsArray(v) {
     .map((it) => ({
       label: String(it.label).trim(),
       qty: Number(it.qty) > 0 ? Number(it.qty) : 1,
-      price: Number(it.price) >= 0 ? Number(it.price) : 0
+      price: Number(it.price) >= 0 ? Number(it.price) : 0,
+      deferred: !!it.deferred
     }));
 }
 function str(v) { return typeof v === 'string' ? v : ''; }
@@ -61,6 +65,38 @@ app.get('/api/testimonials', (req, res) => {
 app.get('/api/google-reviews', async (req, res) => {
   const data = await google.fetchGoogleReviews();
   res.json(data || { reviews: [] });
+});
+
+/** Validates Twilio's X-Twilio-Signature header when an auth token is configured; open (unverified) otherwise. */
+function validTwilioSignature(req) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken) return true;
+  const signature = req.headers['x-twilio-signature'];
+  if (!signature) return false;
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  const params = req.body || {};
+  const data = Object.keys(params).sort().reduce((acc, key) => acc + key + params[key], url);
+  const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  } catch {
+    return false;
+  }
+}
+
+/** Twilio webhook for inbound SMS replies (used for the NPS satisfaction request). Always responds 200/TwiML — Twilio retries on failure otherwise. */
+app.post('/api/twilio/inbound-sms', (req, res) => {
+  res.type('text/xml').send('<Response></Response>');
+  if (!validTwilioSignature(req)) return;
+  const from = str(req.body.From);
+  const bodyText = str(req.body.Body).trim();
+  if (!from || !bodyText) return;
+  const match = bodyText.match(/[1-5]/);
+  const score = match ? Number(match[0]) : null;
+  const client = state.findMatchingClient(from, '', '');
+  db.prepare(`
+    INSERT INTO nps_responses (created_at, client_id, tel, score, raw_message) VALUES (?, ?, ?, ?, ?)
+  `).run(new Date().toISOString(), client ? client.id : null, from, score, bodyText.slice(0, 500));
 });
 
 app.post('/api/testimonials', (req, res) => {
@@ -348,7 +384,7 @@ function createDoc(table, req, res, defaultStatut) {
 adminRouter.post('/clients/:id/quotes', (req, res) => createDoc('quotes', req, res, 'envoyé'));
 adminRouter.post('/clients/:id/invoices', (req, res) => createDoc('invoices', req, res, 'impayée'));
 
-function updateDoc(table, statutOptions, req, res) {
+async function updateDoc(table, statutOptions, req, res) {
   const id = Number(req.params.id);
   const b = req.body || {};
   const existing = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
@@ -376,7 +412,15 @@ function updateDoc(table, statutOptions, req, res) {
   db.prepare(`UPDATE ${table} SET statut = ?, items = ?, vehicule_id = ?, date = ?, discount_type = ?, discount_value = ? WHERE id = ?`)
     .run(statut, items, vehiculeId, date, discountType, discountValue, id);
   applyVehiculeKm(vehiculeId, b.vehiculeKm);
-  res.json({ ok: true });
+
+  let notified = null;
+  if (table === 'invoices' && statut === 'payée' && existing.statut !== 'payée') {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(existing.client_id);
+    if (client && client.tel) {
+      notified = await notify.sendNpsRequest(client, existing);
+    }
+  }
+  res.json({ ok: true, notified });
 }
 
 adminRouter.patch('/quotes/:id', (req, res) => updateDoc('quotes', ['envoyé', 'accepté', 'refusé'], req, res));
@@ -390,6 +434,15 @@ adminRouter.patch('/invoices/:id', (req, res) => updateDoc('invoices', ['impayé
 adminRouter.delete('/invoices/:id', (req, res) => {
   const info = db.prepare('DELETE FROM invoices WHERE id = ?').run(Number(req.params.id));
   if (info.changes === 0) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ ok: true });
+});
+
+adminRouter.post('/overload-threshold', (req, res) => {
+  const b = req.body || {};
+  let threshold = Math.round(Number(b.threshold));
+  if (!(threshold >= 1)) threshold = 6;
+  if (threshold > 50) threshold = 50;
+  db.prepare('UPDATE site_state SET overload_threshold = ? WHERE id = 1').run(threshold);
   res.json({ ok: true });
 });
 

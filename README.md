@@ -53,6 +53,14 @@ Dès qu'un rendez-vous est confirmé, annulé, remis en attente ou modifié depu
 
 ⚠️ Avec un numéro Twilio standard, le client verra un numéro inconnu comme expéditeur, pas "MyCarStore". Pour un nom d'expéditeur professionnel en France, Twilio propose l'enregistrement d'un **Alphanumeric Sender ID**, une démarche de vérification d'identité pro supplémentaire (voir leur documentation) — pas nécessaire pour que ça fonctionne, mais plus crédible pour les clients.
 
+### Recevoir les réponses au sondage de satisfaction (NPS)
+
+Dès qu'une facture passe en "payée", un SMS demande au client de noter son expérience de 1 à 5. Pour que sa réponse remonte dans sa fiche client, Twilio doit être configuré pour transmettre les SMS reçus à l'application :
+
+1. Dans la console Twilio, ouvre le numéro configuré dans `TWILIO_FROM_NUMBER`.
+2. Dans la section **Messaging** → **A message comes in**, choisis "Webhook" et renseigne : `https://<ton-domaine-railway>/api/twilio/inbound-sms` (méthode HTTP POST).
+3. Enregistre. Les réponses des clients apparaîtront automatiquement dans l'onglet "Journal des communications" de leur fiche client.
+
 ## Avis Google intégrés au site
 
 En plus des avis laissés directement sur le site (modérés depuis l'onglet "Avis" de l'admin), le site peut afficher automatiquement la note et quelques avis récents de la fiche Google Business de l'atelier. Tant que ce n'est pas configuré, ce bloc reste simplement invisible sur le site — rien ne casse.
