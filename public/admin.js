@@ -63,6 +63,63 @@ var CURRENT_USERNAME = null;
 var adminState = {tab:'dashboard', clientId:null, calMonth:null};
 var REPORTS = null;
 
+/* ---------- notifications navigateur (nouvelles demandes / avis) ---------- */
+var pollTimer = null;
+var notifyBaseline = {initialized:false, pendingAppointments:0, pendingTestimonials:0};
+
+function pendingCounts(){
+  return {
+    pendingAppointments: STATE.appointments.filter(function(a){ return a.status === 'en_attente'; }).length,
+    pendingTestimonials: (STATE.testimonials || []).filter(function(t){ return !t.published; }).length
+  };
+}
+
+function syncNotifyBaseline(){
+  var c = pendingCounts();
+  notifyBaseline.pendingAppointments = c.pendingAppointments;
+  notifyBaseline.pendingTestimonials = c.pendingTestimonials;
+  notifyBaseline.initialized = true;
+}
+
+function notifyBrowser(title, body){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    var n = new Notification(title, {body: body, tag: title});
+    n.onclick = function(){ window.focus(); n.close(); };
+  } catch(e){}
+}
+
+function pollForUpdates(){
+  api('GET', '/api/admin/state').then(function(data){
+    STATE = data;
+    var c = pendingCounts();
+    if(notifyBaseline.initialized){
+      if(c.pendingAppointments > notifyBaseline.pendingAppointments){
+        notifyBrowser('Nouvelle demande de rendez-vous', (c.pendingAppointments - notifyBaseline.pendingAppointments) + ' nouvelle(s) demande(s) en attente.');
+      }
+      if(c.pendingTestimonials > notifyBaseline.pendingTestimonials){
+        notifyBrowser('Nouvel avis client', 'Un avis est en attente de modération.');
+      }
+    }
+    notifyBaseline.pendingAppointments = c.pendingAppointments;
+    notifyBaseline.pendingTestimonials = c.pendingTestimonials;
+    notifyBaseline.initialized = true;
+
+    var modalOpen = !!document.getElementById('modalOverlay');
+    if(!modalOpen && adminState.tab !== 'client'){
+      renderAdmin();
+    }
+  }).catch(function(){});
+}
+
+function notificationButtonHtml(){
+  if(!('Notification' in window)) return '';
+  var perm = Notification.permission;
+  if(perm === 'granted') return '<span class="btn btn-line btn-sm" style="opacity:0.65; cursor:default;">🔔 Notifications activées</span>';
+  if(perm === 'denied') return '<span class="btn btn-line btn-sm" style="opacity:0.65; cursor:default;" title="Autorisez les notifications dans les réglages de votre navigateur pour ce site">🔕 Notifications bloquées</span>';
+  return '<button type="button" class="btn btn-line btn-sm" data-action="enable-notifications">🔔 Activer les notifications</button>';
+}
+
 function loadReports(){
   return api('GET', '/api/admin/reports').then(function(data){
     REPORTS = data;
@@ -147,7 +204,9 @@ function showLoginGate(){
 function startAdmin(){
   document.getElementById('loginGate').hidden = true;
   document.getElementById('adminApp').hidden = false;
-  refreshState();
+  refreshState().then(syncNotifyBaseline);
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollForUpdates, 25000);
 }
 
 document.getElementById('loginForm').addEventListener('submit', function(e){
@@ -1400,6 +1459,7 @@ function renderAdmin(){
         tabBtn('accounts', 'Comptes') +
       '</div>' +
       '<div class="row-actions">' +
+        notificationButtonHtml() +
         '<a class="btn btn-line btn-sm" href="/">Voir le site public</a>' +
         '<button type="button" class="btn btn-line btn-sm" data-action="change-password">Mot de passe</button>' +
         '<button type="button" class="btn btn-line btn-sm" data-action="logout">Déconnexion</button>' +
@@ -1436,7 +1496,10 @@ document.getElementById('adminApp').addEventListener('click', function(e){
     renderAdmin();
     if(adminState.tab === 'reports') loadReports();
   } else if(action === 'logout'){
+    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
     api('POST', '/api/logout').then(function(){ showLoginGate(); }).catch(function(){});
+  } else if(action === 'enable-notifications'){
+    if('Notification' in window) Notification.requestPermission().then(function(){ renderAdmin(); });
   } else if(action === 'change-password'){
     openPasswordForm();
   } else if(action === 'set-status-open'){

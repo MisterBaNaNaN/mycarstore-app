@@ -53,9 +53,19 @@ Dès qu'un rendez-vous est confirmé, annulé, remis en attente ou modifié depu
 
 ⚠️ Avec un numéro Twilio standard, le client verra un numéro inconnu comme expéditeur, pas "MyCarStore". Pour un nom d'expéditeur professionnel en France, Twilio propose l'enregistrement d'un **Alphanumeric Sender ID**, une démarche de vérification d'identité pro supplémentaire (voir leur documentation) — pas nécessaire pour que ça fonctionne, mais plus crédible pour les clients.
 
+## Avis Google intégrés au site
+
+En plus des avis laissés directement sur le site (modérés depuis l'onglet "Avis" de l'admin), le site peut afficher automatiquement la note et quelques avis récents de la fiche Google Business de l'atelier. Tant que ce n'est pas configuré, ce bloc reste simplement invisible sur le site — rien ne casse.
+
+1. Crée une clé API sur [console.cloud.google.com](https://console.cloud.google.com) : nouveau projet → **APIs & Services** → active **"Places API"** → **Credentials** → crée une clé API.
+   - Un compte de facturation Google Cloud doit être rattaché au projet, mais l'usage d'un petit site (une requête mise en cache 1h) reste largement dans le crédit gratuit mensuel de Google.
+2. Trouve l'identifiant **Place ID** de l'atelier avec l'outil officiel [Place ID Finder](https://developers.google.com/maps/documentation/places/web-service/place-id) (cherche "MyCarStore Morvillars" sur la carte).
+3. Sur Railway (Variables du service) :
+   - `GOOGLE_PLACES_API_KEY` = la clé créée
+   - `GOOGLE_PLACE_ID` = l'identifiant trouvé à l'étape 2
+
 ## Sécurité — à faire avant un vrai lancement public
 
 - Change le mot de passe admin par défaut dès la première connexion (bouton "Mot de passe" dans l'admin).
 - Le cookie de session n'est marqué "Secure" qu'en production (`NODE_ENV=production`) — pense à définir cette variable d'environnement sur l'hébergeur, pour qu'il n'accepte le cookie que via HTTPS.
-- Remplace le numéro de SMS de test (`0640658409`, dans `public/site.js`) par le vrai numéro mobile de l'atelier, ou retire ce bouton si l'atelier n'a pas de mobile dédié.
 - Pense à sauvegarder régulièrement le fichier `data.sqlite` (c'est toute la base de données).

@@ -7,6 +7,7 @@ const state = require('./lib/state');
 const auth = require('./lib/auth');
 const notify = require('./lib/notify');
 const reminders = require('./lib/reminders');
+const google = require('./lib/google');
 
 const app = express();
 app.use(express.json());
@@ -55,6 +56,11 @@ app.get('/api/taken-slots', (req, res) => {
 
 app.get('/api/testimonials', (req, res) => {
   res.json(state.getTestimonials().filter((t) => t.published));
+});
+
+app.get('/api/google-reviews', async (req, res) => {
+  const data = await google.fetchGoogleReviews();
+  res.json(data || { reviews: [] });
 });
 
 app.post('/api/testimonials', (req, res) => {

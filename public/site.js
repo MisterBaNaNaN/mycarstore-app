@@ -123,6 +123,31 @@ fetch('/api/testimonials')
   })
   .catch(function(){});
 
+fetch('/api/google-reviews')
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(data){
+    var section = document.getElementById('googleReviews');
+    if(!section || !data || !data.reviews || !data.reviews.length) return;
+    var grid = document.getElementById('googleGrid');
+    grid.innerHTML = data.reviews.map(function(r){
+      return '<div class="testi-card">' +
+        '<div class="stars">' + starsHtml(Math.round(r.rating)) + '</div>' +
+        '<p>' + escapeHtml(r.text || '') + '</p>' +
+        '<div class="who">' + escapeHtml(r.author) + (r.relativeTime ? ' · ' + escapeHtml(r.relativeTime) : '') + '</div>' +
+      '</div>';
+    }).join('');
+    if(data.rating){
+      document.getElementById('googleRatingValue').textContent = data.rating.toLocaleString('fr-FR', {minimumFractionDigits:1, maximumFractionDigits:1});
+      document.getElementById('googleStars').textContent = starsHtml(Math.round(data.rating));
+    }
+    document.getElementById('googleCount').textContent = data.totalReviews
+      ? '(' + data.totalReviews + ' avis Google)' : '';
+    var link = document.getElementById('googleProfileLink');
+    if(data.profileUrl){ link.href = data.profileUrl; } else { link.hidden = true; }
+    section.hidden = false;
+  })
+  .catch(function(){});
+
 var testiForm = document.getElementById('testiForm');
 if(testiForm){
   var testiStatusEl = document.getElementById('testiFormStatus');
