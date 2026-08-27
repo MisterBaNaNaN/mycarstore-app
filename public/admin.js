@@ -8,6 +8,10 @@ function fmtFr(dateStr){
   if(!dateStr) return '—';
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'});
 }
+function fmtFrDateTime(isoStr){
+  if(!isoStr) return '—';
+  return new Date(isoStr).toLocaleString('fr-FR', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
 function eur(n){
   return (Math.round((n || 0) * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
 }
@@ -817,6 +821,29 @@ function openApptForm(existing){
 }
 
 /* ---------- render: dashboard ---------- */
+var COMM_KIND_LABEL = {confirme:'Confirmation RDV', annule:'Annulation RDV', en_attente:'Remise en attente', modifie:'Modification RDV', rappel:'Rappel RDV (veille)'};
+var COMM_CHANNEL_LABEL = {email:'E-mail', sms:'SMS'};
+var COMM_DETAIL_LABEL = {not_configured:'service non configuré', no_recipient:'pas de coordonnée valide', send_failed:"échec de l'envoi", exception:'erreur technique'};
+
+function commLogHtml(list){
+  if(!list || !list.length) return '<div class="admin-empty">Aucune communication envoyée pour le moment.</div>';
+  var rows = list.map(function(c){
+    var statusHtml = c.status === 'sent'
+      ? '<span class="chip-status tone-paid"><span class="dot"></span>Envoyé</span>'
+      : c.status === 'failed'
+        ? '<span class="chip-status tone-overdue"><span class="dot"></span>Échec' + (COMM_DETAIL_LABEL[c.detail] ? ' — ' + COMM_DETAIL_LABEL[c.detail] : '') + '</span>'
+        : '<span class="chip-status tone-sent"><span class="dot"></span>Non envoyé' + (COMM_DETAIL_LABEL[c.detail] ? ' — ' + COMM_DETAIL_LABEL[c.detail] : '') + '</span>';
+    return '<tr>' +
+      '<td class="muted">' + escapeHtml(fmtFrDateTime(c.createdAt)) + '</td>' +
+      '<td>' + escapeHtml(COMM_CHANNEL_LABEL[c.channel] || c.channel) + '</td>' +
+      '<td>' + escapeHtml(COMM_KIND_LABEL[c.kind] || c.kind) + '</td>' +
+      '<td class="muted">' + escapeHtml(c.recipient || '—') + '</td>' +
+      '<td>' + statusHtml + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Date</th><th>Canal</th><th>Type</th><th>Destinataire</th><th>Statut</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
 function alertRows(alerts){
   if(!alerts.length) return '<div class="admin-empty">Aucune échéance CT ou révision à venir.</div>';
   var typeLabel = {ct:'Contrôle technique', revision:'Révision'};
@@ -1175,6 +1202,11 @@ function renderClientDetail(id){
     '<div class="admin-panel">' +
       '<div class="admin-panel-head"><h3>Historique d\'activité</h3></div>' +
       timelineHtml +
+    '</div>' +
+
+    '<div class="admin-panel">' +
+      '<div class="admin-panel-head"><h3>Journal des communications</h3></div>' +
+      commLogHtml(c.communications) +
     '</div>' +
 
     '<div class="admin-panel">' +
